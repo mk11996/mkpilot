@@ -76,7 +76,10 @@ class LongitudinalPlanner:
     self.dp_long_use_krkeegen_tune_active = False
 
   def read_param(self):
-    self.personality = int(self.params.get('LongitudinalPersonality'))
+    try:
+      self.personality = int(self.params.get('LongitudinalPersonality'))
+    except (ValueError, TypeError):
+      self.personality = log.LongitudinalPersonality.standard
     self.dp_long_use_df_tune = self.params.get_bool('dp_long_use_df_tune')
     self.dp_long_use_krkeegen_tune = self.params.get_bool('dp_long_use_krkeegen_tune')
 

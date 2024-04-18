@@ -1,3 +1,7 @@
+2024-03-20
+========================
+* Bug fixes
+
 2024-03-19
 ========================
 * Attempt to fix 70 mins LKAS/Harness error on Toyotas.
