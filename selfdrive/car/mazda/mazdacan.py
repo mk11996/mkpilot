@@ -61,6 +61,23 @@ def create_steering_control(packer, car_fingerprint, frame, apply_steer, lkas):
 
   return packer.make_can_msg("CAM_LKAS", 0, values)
 
+def create_ti_steering_control(packer, car_fingerprint, frame, apply_steer):
+
+  commands = []
+
+  key = 3294744160
+  chksum = apply_steer
+
+  if car_fingerprint in GEN1:
+    values = {
+        "LKAS_REQUEST"     : apply_steer,
+        "HKSCUM"           : chksum,
+        "KEY"              : key
+     }
+  # TODO 
+  # 添加TI消息
+  commands.append(packer.make_can_msg("CAM_LKAS2", 1, values))
+  return commands
 
 def create_alert_command(packer, cam_msg: dict, ldw: bool, steer_required: bool):
   values = {s: cam_msg[s] for s in [
