@@ -159,9 +159,11 @@ class CarState(CarStateBase):
         ("GEAR", 20),
         ("BSM", 10),
       ]
-    # 添加TI_FEEDBACK消息及其信号和检查频率
+    signals = []
+    checks = []
+    # get real driver torque if we are using a torque interceptor
     if CP.enableTorqueInterceptor:
-      messages += [
+      signals += [
         ("TI_TORQUE_SENSOR", "TI_FEEDBACK", 0),
         ("CHKSUM", "TI_FEEDBACK", 0),
         ("VERSION_NUMBER", "TI_FEEDBACK", 0),
@@ -170,11 +172,36 @@ class CarState(CarStateBase):
         ("ERROR", "TI_FEEDBACK", 0),
         ("RAMP_DOWN", "TI_FEEDBACK", 0),
       ]
+
       checks += [
-      ("TI_FEEDBACK", 50),  # 每 50ms 检查1次
+        ("TI_FEEDBACK", 100),
       ]
 
     return CANParser(DBC[CP.carFingerprint]["pt"], messages, 0)
+
+  @staticmethod
+  def get_body_can_parser(CP):
+    # this function generates lists for signal, messages and initial values
+    signals = []
+    checks = []
+    # get real driver torque if we are using a torque interceptor
+    if CP.enableTorqueInterceptor:
+      signals += [
+        ("TI_TORQUE_SENSOR", "TI_FEEDBACK", 0),
+        ("CHKSUM", "TI_FEEDBACK", 0),
+        ("VERSION_NUMBER", "TI_FEEDBACK", 0),
+        ("STATE", "TI_FEEDBACK", 0),
+        ("VIOL", "TI_FEEDBACK", 0),
+        ("ERROR", "TI_FEEDBACK", 0),
+        ("RAMP_DOWN", "TI_FEEDBACK", 0),
+      ]
+
+      checks += [
+        ("TI_FEEDBACK", 50),
+      ]
+      
+    return CANParser(DBC[CP.carFingerprint]["pt"], signals, checks, 1) # changed to back to 0 because my OBD2 port works
+
 
   @staticmethod
   def get_cam_can_parser(CP):
