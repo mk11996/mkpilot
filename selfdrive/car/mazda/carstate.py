@@ -14,7 +14,7 @@ class CarState(CarStateBase):
 
     self.crz_btns_counter = 0
     self.acc_active_last = False
-    #self.low_speed_alert = False
+    #1self.low_speed_alert = False
     self.lkas_allowed_speed = False
     self.lkas_disabled = False
      # 如果启用了扭矩拦截器，初始化相关的变量
@@ -92,17 +92,17 @@ class CarState(CarStateBase):
     ret.steeringRateDeg = cp.vl["STEER_RATE"]["STEER_ANGLE_RATE"]
 
     # Either due to low speed or hands off
-   #1 lkas_blocked = cp.vl["STEER_RATE"]["LKAS_BLOCK"] == 1
+    lkas_blocked = cp.vl["STEER_RATE"]["LKAS_BLOCK"] == 1
 
-   #1 if self.CP.minSteerSpeed > 0:
+    if self.CP.minSteerSpeed > 0:
       # LKAS is enabled at 52kph going up and disabled at 45kph going down
       # wait for LKAS_BLOCK signal to clear when going up since it lags behind the speed sometimes
-   #1   if speed_kph > LKAS_LIMITS.ENABLE_SPEED and not lkas_blocked:
-   #1     self.lkas_allowed_speed = True
-   #1   elif speed_kph < LKAS_LIMITS.DISABLE_SPEED:
-   #1     self.lkas_allowed_speed = False
-   #1 else:
-   #1   self.lkas_allowed_speed = True
+      if speed_kph > LKAS_LIMITS.ENABLE_SPEED and not lkas_blocked:
+        self.lkas_allowed_speed = True
+      elif speed_kph < LKAS_LIMITS.DISABLE_SPEED:
+        self.lkas_allowed_speed = False
+    else:
+      self.lkas_allowed_speed = True
 
     # TODO: the signal used for available seems to be the adaptive cruise signal, instead of the main on
     #       it should be used for carState.cruiseState.nonAdaptive instead
@@ -158,6 +158,20 @@ class CarState(CarStateBase):
         ("DOORS", 10),
         ("GEAR", 20),
         ("BSM", 10),
+      ]
+    # 添加TI_FEEDBACK消息及其信号和检查频率
+    if CP.enableTorqueInterceptor:
+      messages += [
+        ("TI_TORQUE_SENSOR", "TI_FEEDBACK", 0),
+        ("CHKSUM", "TI_FEEDBACK", 0),
+        ("VERSION_NUMBER", "TI_FEEDBACK", 0),
+        ("STATE", "TI_FEEDBACK", 0),
+        ("VIOL", "TI_FEEDBACK", 0),
+        ("ERROR", "TI_FEEDBACK", 0),
+        ("RAMP_DOWN", "TI_FEEDBACK", 0),
+      ]
+      checks += [
+      ("TI_FEEDBACK", 50),  # 每 50ms 检查1次
       ]
 
     return CANParser(DBC[CP.carFingerprint]["pt"], messages, 0)
