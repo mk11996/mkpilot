@@ -13,6 +13,7 @@ from openpilot.selfdrive.car.fw_versions import get_fw_versions_ordered, get_pre
 from openpilot.system.swaglog import cloudlog
 import cereal.messaging as messaging
 from openpilot.selfdrive.car import gen_empty_fingerprint
+from openpilot.selfdrive import global_ti
 
 FRAME_FINGERPRINT = 100  # 1s
 
@@ -212,6 +213,14 @@ def get_car(logcan, sendcan, experimental_long_allowed, num_pandas=1):
   CP.fuzzyFingerprint = not exact_match
 
   return CarInterface(CP, CarController, CarState), CP
+
+def get_ti():
+  print("get_ti, entering get_params")
+  CarInterface = global_ti.saved_CarInterface
+  car_params = CarInterface.get_params(global_ti.saved_candidate, global_ti.saved_finger)
+
+  return car_params
+
 
 def write_car_param(fingerprint="mock"):
   params = Params()
