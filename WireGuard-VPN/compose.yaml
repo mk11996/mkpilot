@@ -1,0 +1,26 @@
+services:
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: personal-wireguard
+    cap_add:
+      - NET_ADMIN
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+      SERVERURL: ${WG_ENDPOINT}
+      SERVERPORT: ${WG_PORT}
+      PEERS: ${WG_PEERS}
+      PEERDNS: ${WG_DNS}
+      INTERNAL_SUBNET: ${WG_SUBNET}
+      ALLOWEDIPS: ${WG_ALLOWED_IPS}
+      PERSISTENTKEEPALIVE_PEERS: all
+      LOG_CONFS: "false"
+    volumes:
+      - ./config:/config
+      - /lib/modules:/lib/modules:ro
+    ports:
+      - "${WG_PORT}:51820/udp"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    restart: unless-stopped

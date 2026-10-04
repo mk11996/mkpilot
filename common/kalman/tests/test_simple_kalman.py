@@ -3,8 +3,8 @@ import random
 import timeit
 import numpy as np
 
-from openpilot.common.kalman.simple_kalman import KF1D
-from openpilot.common.kalman.simple_kalman_old import KF1D as KF1D_old
+from common.kalman.simple_kalman import KF1D
+from common.kalman.simple_kalman_old import KF1D as KF1D_old
 
 
 class TestSimpleKalman(unittest.TestCase):
@@ -36,8 +36,8 @@ class TestSimpleKalman(unittest.TestCase):
     self.assertEqual(self.kf.x, [[1.0], [1.0]])
 
   def update_returns_state(self):
-    x = self.kf.update(100)
-    self.assertEqual(x, self.kf.x)
+      x = self.kf.update(100)
+      self.assertEqual(x, self.kf.x)
 
   def test_old_equal_new(self):
     for _ in range(1000):
@@ -54,8 +54,8 @@ class TestSimpleKalman(unittest.TestCase):
     setup = """
 import numpy as np
 
-from openpilot.common.kalman.simple_kalman import KF1D
-from openpilot.common.kalman.simple_kalman_old import KF1D as KF1D_old
+from common.kalman.simple_kalman import KF1D
+from common.kalman.simple_kalman_old import KF1D as KF1D_old
 
 dt = 0.01
 x0_0 = 0.0

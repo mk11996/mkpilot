@@ -1,0 +1,118 @@
+services:
+  api:
+    build:
+      context: ./server
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim}
+    environment:
+      APP_NAME: openpilot-public-server
+      APP_ENV: production
+      APP_SECRET: ${APP_SECRET:?Set APP_SECRET in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      DATABASE_URL: postgresql+psycopg://openpilot:${POSTGRES_PASSWORD}@postgres:5432/openpilot
+      STORAGE_ROOT: /srv/openpilot-storage
+      PUBLIC_BASE_URL: https://${SERVER_DOMAIN:?Set SERVER_DOMAIN in .env}
+      LOCAL_ENROLL_CODE: ${LOCAL_ENROLL_CODE:?Set LOCAL_ENROLL_CODE in .env}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      DIAGNOSTICS_TOKEN: ${DIAGNOSTICS_TOKEN:?Set DIAGNOSTICS_TOKEN in .env}
+      UPLOAD_TOKEN_TTL_SECONDS: "900"
+      MAX_UPLOAD_BYTES: "2147483648"
+      # 30 GiB total cap for all uploaded videos, logs and trajectory CSVs.
+      STORAGE_LIMIT_BYTES: "21474836480"
+      # Browser playback previews are derived files, capped separately.
+      PREVIEW_CACHE_LIMIT_BYTES: "2147483648"
+      LOG_RETENTION_DAYS: "60"
+      CLEANUP_INTERVAL_SECONDS: "3600"
+      FFMPEG_ENABLED: "1"
+      VIDEO_FPS: "20"
+      APP_TOKEN_TTL_SECONDS: "86400"
+      JWT_CLOCK_SKEW_SECONDS: "5"
+      LOGIN_MAX_ATTEMPTS: "5"
+      LOGIN_WINDOW_SECONDS: "900"
+      LOG_LEVEL: INFO
+      ATHENA_PATH_PREFIX: /ws/v2
+    expose:
+      - "8080"
+    volumes:
+      - ./storage:/srv/openpilot-storage
+    networks:
+      - private
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:16}
+    environment:
+      POSTGRES_DB: openpilot
+      POSTGRES_USER: openpilot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openpilot -d openpilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  caddy:
+    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    environment:
+      SERVER_DOMAIN: ${SERVER_DOMAIN:?Set SERVER_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - public
+      - private
+    depends_on:
+      api:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  public:
+  private:
+    internal: true

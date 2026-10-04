@@ -5,9 +5,9 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 
-from openpilot.common.basedir import BASEDIR
-from openpilot.common.params import Params
-from openpilot.selfdrive.controls.lib.events import Alert
+from common.basedir import BASEDIR
+from common.params import Params
+from selfdrive.controls.lib.events import Alert
 
 
 with open(os.path.join(BASEDIR, "selfdrive/controls/lib/alerts_offroad.json")) as f:
@@ -16,11 +16,13 @@ with open(os.path.join(BASEDIR, "selfdrive/controls/lib/alerts_offroad.json")) a
 
 def set_offroad_alert(alert: str, show_alert: bool, extra_text: Optional[str] = None) -> None:
   if show_alert:
-    a = copy.copy(OFFROAD_ALERTS[alert])
-    a['extra'] = extra_text or ''
+    a = OFFROAD_ALERTS[alert]
+    if extra_text is not None:
+      a = copy.copy(OFFROAD_ALERTS[alert])
+      a['text'] += extra_text
     Params().put(alert, json.dumps(a))
   else:
-    Params().remove(alert)
+    Params().delete(alert)
 
 
 @dataclass

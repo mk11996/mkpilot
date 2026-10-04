@@ -9,7 +9,6 @@ struct VisionIpcBufExtra {
   uint32_t frame_id;
   uint64_t timestamp_sof;
   uint64_t timestamp_eof;
-  bool valid;
 };
 
 struct VisionIpcPacket {

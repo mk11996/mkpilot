@@ -1,4 +1,6 @@
-/gen/
+gen
+node_modules
+package-lock.json
 *.tmp
 *.pyc
 __pycache__
@@ -16,3 +18,4 @@ services.h
 .sconsign.dblite
 libcereal_shared.*
 .mypy_cache/
+catch2/

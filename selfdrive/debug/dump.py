@@ -3,18 +3,17 @@ import os
 import sys
 import argparse
 import json
-import codecs
-import cereal.messaging as messaging
-
 from hexdump import hexdump
-from cereal import log
-from cereal.services import SERVICE_LIST
-
+import codecs
 codecs.register_error("strict", codecs.backslashreplace_errors)
+
+from cereal import log
+import cereal.messaging as messaging
+from cereal.services import service_list
 
 if __name__ == "__main__":
 
-  parser = argparse.ArgumentParser(description='Dump communication sockets. See cereal/services.py for a complete list of available sockets.')
+  parser = argparse.ArgumentParser(description='Dump communcation sockets. See cereal/services.py for a complete list of available sockets.')
   parser.add_argument('--pipe', action='store_true')
   parser.add_argument('--raw', action='store_true')
   parser.add_argument('--json', action='store_true')
@@ -31,7 +30,7 @@ if __name__ == "__main__":
 
   poller = messaging.Poller()
 
-  for m in args.socket if len(args.socket) > 0 else SERVICE_LIST:
+  for m in args.socket if len(args.socket) > 0 else service_list:
     messaging.sub_sock(m, poller, addr=args.addr)
 
   values = None
@@ -43,8 +42,6 @@ if __name__ == "__main__":
     for sock in polld:
       msg = sock.receive()
       evt = log.Event.from_bytes(msg)
-      # with log.Event.from_bytes(msg) as log_evt:
-      #   evt = log_evt
 
       if not args.no_print:
         if args.pipe:

@@ -1,37 +1,13 @@
 #!/usr/bin/env python3
-import os
-import numpy as np
 from cereal import car
-from openpilot.common.params import Params
-from openpilot.common.realtime import Priority, config_realtime_process
-from openpilot.system.swaglog import cloudlog
-from openpilot.selfdrive.hybrid_modeld.constants import ModelConstants
+from common.params import Params
+from common.realtime import Priority, config_realtime_process
+from selfdrive.swaglog import cloudlog
+from selfdrive.controls.lib.longitudinal_planner import Planner
+from selfdrive.controls.lib.lateral_planner import LateralPlanner
+from selfdrive.hardware import TICI
 import cereal.messaging as messaging
-from openpilot.system.hardware import TICI
 
-if Params().get_bool("dp_0813"):
-  from openpilot.selfdrive.controls.lib.legacy_longitudinal_planner import LongitudinalPlanner
-  from openpilot.selfdrive.controls.lib.legacy_lateral_planner import LateralPlanner
-else:
-  from openpilot.selfdrive.controls.lib.longitudinal_planner import LongitudinalPlanner
-  from openpilot.selfdrive.controls.lib.lateral_planner import LateralPlanner
-
-def cumtrapz(x, t):
-  return np.concatenate([[0], np.cumsum(((x[0:-1] + x[1:])/2) * np.diff(t))])
-
-def publish_ui_plan(sm, pm, lateral_planner, longitudinal_planner):
-  plan_odo = cumtrapz(longitudinal_planner.v_desired_trajectory_full, ModelConstants.T_IDXS)
-  model_odo = cumtrapz(lateral_planner.v_plan, ModelConstants.T_IDXS)
-
-  ui_send = messaging.new_message('uiPlan')
-  ui_send.valid = sm.all_checks(service_list=['carState', 'controlsState', 'modelV2'])
-  uiPlan = ui_send.uiPlan
-  uiPlan.frameId = sm['modelV2'].frameId
-  uiPlan.position.x = np.interp(plan_odo, model_odo, lateral_planner.lat_mpc.x_sol[:,0]).tolist()
-  uiPlan.position.y = np.interp(plan_odo, model_odo, lateral_planner.lat_mpc.x_sol[:,1]).tolist()
-  uiPlan.position.z = np.interp(plan_odo, model_odo, lateral_planner.path_xyz[:,2]).tolist()
-  uiPlan.accel = longitudinal_planner.a_desired_trajectory_full.tolist()
-  pm.send('uiPlan', ui_send)
 
 def plannerd_thread(sm=None, pm=None):
   config_realtime_process(5 if TICI else 2, Priority.CTRL_LOW)
@@ -39,33 +15,50 @@ def plannerd_thread(sm=None, pm=None):
   cloudlog.info("plannerd is waiting for CarParams")
   params = Params()
   CP = car.CarParams.from_bytes(params.get("CarParams", block=True))
-  # with car.CarParams.from_bytes(params.get("CarParams", block=True)) as msg:
-  #   CP = msg
   cloudlog.info("plannerd got CarParams: %s", CP.carName)
 
-  debug_mode = bool(int(os.getenv("DEBUG", "0")))
+  use_lanelines = not params.get_bool('EndToEndToggle')
+  wide_camera = params.get_bool('EnableWideCamera') if TICI else False
 
-  longitudinal_planner = LongitudinalPlanner(CP)
-  lateral_planner = LateralPlanner(CP, debug=debug_mode)
-  is_old_model = Params().get_bool("dp_0813")
+  cloudlog.event("e2e mode", on=use_lanelines)
+
+  longitudinal_planner = Planner(CP)
+  lateral_planner = LateralPlanner(CP, use_lanelines=use_lanelines, wide_camera=wide_camera)
 
   if sm is None:
-    sm = messaging.SubMaster(['carControl', 'carState', 'controlsState', 'radarState', 'modelV2'],
+    sm = messaging.SubMaster(['carState', 'controlsState', 'radarState', 'modelV2'],
                              poll=['radarState', 'modelV2'], ignore_avg_freq=['radarState'])
 
   if pm is None:
-    pm = messaging.PubMaster(['longitudinalPlan', 'lateralPlan', 'uiPlan', 'longitudinalPlanExt', 'lateralPlanExt'])
+    pm = messaging.PubMaster(['longitudinalPlan', 'lateralPlan'])
+
+  frame = 0
+  last_log_frame = 0
+  cloudlog.info("[plannerd] Starting main loop")
 
   while True:
     sm.update()
 
     if sm.updated['modelV2']:
+      # 定期记录关键服务状态（每30秒记录一次）
+      if frame - last_log_frame >= 600:  # 假设 20Hz，600帧 = 30秒
+        carState_alive = sm.alive.get('carState', False)
+        carState_valid = sm.valid.get('carState', False)
+        controlsState_alive = sm.alive.get('controlsState', False)
+        controlsState_valid = sm.valid.get('controlsState', False)
+        modelV2_alive = sm.alive.get('modelV2', False)
+        modelV2_valid = sm.valid.get('modelV2', False)
+        cloudlog.info(f"[plannerd] Services status: carState(alive={carState_alive}, valid={carState_valid}), "
+                     f"controlsState(alive={controlsState_alive}, valid={controlsState_valid}), "
+                     f"modelV2(alive={modelV2_alive}, valid={modelV2_valid})")
+        last_log_frame = frame
+
       lateral_planner.update(sm)
       lateral_planner.publish(sm, pm)
       longitudinal_planner.update(sm)
       longitudinal_planner.publish(sm, pm)
-      # if not is_old_model:
-      #   publish_ui_plan(sm, pm, lateral_planner, longitudinal_planner)
+      frame += 1
+
 
 def main(sm=None, pm=None):
   plannerd_thread(sm, pm)

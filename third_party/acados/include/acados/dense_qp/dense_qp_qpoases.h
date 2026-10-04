@@ -1,5 +1,8 @@
 /*
- * Copyright (c) The acados authors.
+ * Copyright 2019 Gianluca Frison, Dimitris Kouzoupis, Robin Verschueren,
+ * Andrea Zanelli, Niels van Duijkeren, Jonathan Frey, Tommaso Sartor,
+ * Branimir Novoselnik, Rien Quirynen, Rezart Qelibari, Dang Doan,
+ * Jonas Koenemann, Yutao Chen, Tobias Schöls, Jonas Schlagenhauf, Moritz Diehl
  *
  * This file is part of acados.
  *
@@ -114,8 +117,6 @@ acados_size_t dense_qp_qpoases_workspace_calculate_size(void *config, dense_qp_d
 int dense_qp_qpoases(void *config, dense_qp_in *qp_in, dense_qp_out *qp_out, void *opts_, void *memory_, void *work_);
 //
 void dense_qp_qpoases_eval_sens(void *config_, void *qp_in, void *qp_out, void *opts_, void *mem_, void *work_);
-//
-void dense_qp_qpoases_memory_reset(void *config_, void *qp_in, void *qp_out, void *opts_, void *mem_, void *work_);
 //
 void dense_qp_qpoases_config_initialize_default(void *config_);
 

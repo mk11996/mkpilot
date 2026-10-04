@@ -10,18 +10,28 @@ from pathlib import Path
 
 from cereal import log
 import cereal.messaging as messaging
-from openpilot.common.api import Api
-from openpilot.common.params import Params
-from openpilot.selfdrive.hardware import TICI
-from openpilot.selfdrive.loggerd.xattr_cache import getxattr, setxattr
-from openpilot.selfdrive.loggerd.config import ROOT
-from openpilot.system.swaglog import cloudlog
+from common.api import Api
+from common.params import Params
+from selfdrive.hardware import TICI
+from selfdrive.loggerd.xattr_cache import getxattr, setxattr
+from selfdrive.loggerd.config import ROOT
+from selfdrive.swaglog import cloudlog
 
 NetworkType = log.DeviceState.NetworkType
-UPLOAD_ATTR_NAME = 'user.upload'
+# Use a server-specific marker. The upstream marker may already be set on
+# files uploaded to comma's servers; reusing it would make a migration to the
+# self-hosted server silently skip all existing route files.
+UPLOAD_ATTR_NAME = 'user.openpilot_local_upload'
 UPLOAD_ATTR_VALUE = b'1'
 
-allow_sleep = bool(os.getenv("UPLOADER_SLEEP", "1"))
+def env_bool(name, default=False):
+  value = os.getenv(name)
+  if value is None:
+    return default
+  return value.strip().lower() not in ("0", "false", "no", "off", "")
+
+
+allow_sleep = env_bool("UPLOADER_SLEEP", True)
 force_wifi = os.getenv("FORCEWIFI") is not None
 fake_upload = os.getenv("FAKEUPLOAD") is not None
 
@@ -54,6 +64,15 @@ class Uploader():
     self.dongle_id = dongle_id
     self.api = Api(dongle_id)
     self.root = root
+    # The custom vehicle logger writes permanent trajectory CSV files outside
+    # the native route tree. They use a virtual "trajectory/" prefix on the
+    # server and are uploaded only after they have been stable for a short
+    # period, so an actively growing CSV is not finalized prematurely.
+    configured_trajectory_root = os.getenv("VEHICLE_LOG_DIR", "/data/logs")
+    self.trajectory_roots = []
+    for candidate in (configured_trajectory_root, "/data/logs", "/data/media/0/logs"):
+      if candidate not in self.trajectory_roots:
+        self.trajectory_roots.append(candidate)
 
     self.upload_thread = None
 
@@ -114,6 +133,37 @@ class Uploader():
 
         yield (name, key, fn)
 
+    for trajectory_root in self.trajectory_roots:
+      if not os.path.isdir(trajectory_root):
+        continue
+      for dirpath, _, filenames in os.walk(trajectory_root):
+        for name in sorted(filenames):
+          if not name.lower().endswith(".csv") or name.endswith(".part"):
+            continue
+          fn = os.path.join(dirpath, name)
+          try:
+            stat = os.stat(fn)
+            # Avoid uploading the CSV while vehicle_data_logger is still
+            # writing the current drive/session file.
+            if time.time() - stat.st_mtime < 30:
+              continue
+            relative = os.path.relpath(fn, trajectory_root).replace(os.sep, "/")
+            key = "trajectory/" + relative
+            expected_marker = f"{stat.st_size}:{stat.st_mtime_ns}".encode()
+            try:
+              is_uploaded = getxattr(fn, UPLOAD_ATTR_NAME)
+            except OSError:
+              # Some Android data mounts do not support user xattrs. Keep a
+              # sidecar marker so CSV files are not silently skipped.
+              is_uploaded = None
+            sidecar = Path(fn + ".uploaded")
+            sidecar_marker = sidecar.read_bytes() if sidecar.is_file() else None
+            if is_uploaded == expected_marker or sidecar_marker == expected_marker:
+              continue
+          except OSError:
+            continue
+          yield (name, key, fn)
+
   def next_file_to_upload(self):
     upload_files = list(self.list_upload_files())
 
@@ -125,12 +175,31 @@ class Uploader():
       if name in self.immediate_priority:
         return (key, fn)
 
+    # CSV trajectories must not wait behind an ever-growing backlog of route
+    # files; they are small and are the user's permanent driving data.
+    for _, key, fn in upload_files:
+      if key.startswith("trajectory/"):
+        return (key, fn)
+
+    # Do not leave non-qcamera streams or other route files stranded. The
+    # previous implementation returned None here, so fcamera/dcamera/ecamera
+    # and ordinary log files were never uploaded unless they were in boot/.
+    if upload_files:
+      _, key, fn = upload_files[0]
+      return (key, fn)
+
     return None
 
   def do_upload(self, key, fn):
     try:
-      url_resp = self.api.get("v1.4/" + self.dongle_id + "/upload_url/", timeout=10, path=key, access_token=self.api.get_token())
+      source_mtime_ms = int(os.stat(fn).st_mtime * 1000)
+      url_resp = self.api.get("v1.4/" + self.dongle_id + "/upload_url/", timeout=10, path=key,
+                              source_mtime_ms=source_mtime_ms, access_token=self.api.get_token())
       if url_resp.status_code == 412:
+        self.last_resp = url_resp
+        return
+      if url_resp.status_code != 200:
+        cloudlog.error("upload_url_failed status=%s body=%s key=%s", url_resp.status_code, url_resp.text[:500], key)
         self.last_resp = url_resp
         return
 
@@ -173,11 +242,18 @@ class Uploader():
       return False
 
     cloudlog.event("upload_start", key=key, fn=fn, sz=sz, network_type=network_type)
+    is_trajectory = key.startswith("trajectory/")
+    try:
+      trajectory_stat = os.stat(fn) if is_trajectory else None
+      upload_marker = (f"{trajectory_stat.st_size}:{trajectory_stat.st_mtime_ns}".encode()
+                       if trajectory_stat is not None else UPLOAD_ATTR_VALUE)
+    except OSError:
+      return False
 
     if sz == 0:
       try:
         # tag files of 0 size as uploaded
-        setxattr(fn, UPLOAD_ATTR_NAME, UPLOAD_ATTR_VALUE)
+        setxattr(fn, UPLOAD_ATTR_NAME, upload_marker)
       except OSError:
         cloudlog.event("uploader_setxattr_failed", exc=self.last_exc, key=key, fn=fn, sz=sz)
       success = True
@@ -187,9 +263,14 @@ class Uploader():
       if stat is not None and stat.status_code in (200, 201, 403, 412):
         try:
           # tag file as uploaded
-          setxattr(fn, UPLOAD_ATTR_NAME, UPLOAD_ATTR_VALUE)
+          setxattr(fn, UPLOAD_ATTR_NAME, upload_marker)
         except OSError:
           cloudlog.event("uploader_setxattr_failed", exc=self.last_exc, key=key, fn=fn, sz=sz)
+        if is_trajectory:
+          try:
+            Path(fn + ".uploaded").write_bytes(upload_marker)
+          except OSError:
+            cloudlog.event("uploader_trajectory_marker_failed", key=key, fn=fn, sz=sz)
 
         self.last_filename = fn
         self.last_time = time.monotonic() - start_time
@@ -223,6 +304,8 @@ def uploader_fn(exit_event):
   if TICI and not Path("/data/media").is_mount():
     cloudlog.warning("NVME not mounted")
 
+  cloudlog.info("uploader_started dongle_id=%s root=%s", dongle_id, ROOT)
+
   sm = messaging.SubMaster(['deviceState'])
   pm = messaging.PubMaster(['uploaderState'])
   uploader = Uploader(dongle_id, ROOT)
@@ -234,12 +317,14 @@ def uploader_fn(exit_event):
     network_type = sm['deviceState'].networkType if not force_wifi else NetworkType.wifi
     if network_type == NetworkType.none:
       if allow_sleep:
+        cloudlog.warning("uploader_network_none offroad=%s", offroad)
         time.sleep(60 if offroad else 5)
       continue
 
     d = uploader.next_file_to_upload()
     if d is None:  # Nothing to upload
       if allow_sleep:
+        cloudlog.debug("uploader_queue_empty root=%s", ROOT)
         time.sleep(60 if offroad else 5)
       continue
 

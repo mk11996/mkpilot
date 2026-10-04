@@ -1,0 +1,593 @@
+<!dfunction fileDateKey(file)unction fileDateKey(file)ctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>openpilot 本地服务器</title>
+  <style>
+    :root { --bg:#0b1120; --panel:#111a2d; --panel2:#16223a; --line:#243450; --text:#e8eefc; --muted:#91a0bb; --blue:#4f8cff; --green:#32d583; --red:#ff6b7a; }
+    * { box-sizing:border-box; } body { margin:0; color:var(--text); background:linear-gradient(135deg,#09101e,#101a30 60%,#0b1325); font:14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif; }
+    button,input,select { font:inherit; } button { border:0; border-radius:9px; padding:9px 14px; color:var(--text); background:#203252; cursor:pointer; transition:.18s; } button:hover { background:#2d4771; transform:translateY(-1px); } button.primary { background:var(--blue); color:white; } button.danger { color:#ffd9de; background:#4b2431; }
+    input,select { color:var(--text); background:#0d1729; border:1px solid var(--line); border-radius:9px; padding:10px 12px; outline:none; } input:focus,select:focus { border-color:var(--blue); box-shadow:0 0 0 3px #4f8cff22; }
+    .hidden { display:none !important; } .login-shell { min-height:100vh; display:grid; place-items:center; padding:24px; } .login-card { width:min(420px,100%); padding:34px; border:1px solid var(--line); border-radius:20px; background:#111a2def; box-shadow:0 24px 70px #0008; }
+    .brand-mark { width:44px; height:44px; border-radius:13px; display:grid; place-items:center; background:linear-gradient(135deg,#4f8cff,#7d62ff); font-weight:800; font-size:18px; } h1,h2,h3,p { margin-top:0; } h1 { margin:16px 0 5px; font-size:25px; } h2 { font-size:20px; } h3 { margin-bottom:5px; } .muted { color:var(--muted); } .login-card input { width:100%; margin:8px 0; } .login-card button { width:100%; margin-top:10px; }
+    .layout { min-height:100vh; display:flex; } .sidebar { width:240px; flex:none; padding:22px 15px; border-right:1px solid var(--line); background:#0d1628cc; } .brand { display:flex; gap:11px; align-items:center; padding:4px 10px 28px; font-weight:700; font-size:16px; } .brand small { display:block; color:var(--muted); font-weight:400; font-size:11px; }
+    .nav { display:grid; gap:6px; } .nav button { text-align:left; background:transparent; color:var(--muted); } .nav button.active,.nav button:hover { color:white; background:#1c2d4c; transform:none; } .sidebar-footer { position:fixed; bottom:20px; width:208px; display:grid; gap:9px; }
+    .main { min-width:0; flex:1; padding:26px clamp(18px,4vw,48px); } .topbar { display:flex; justify-content:space-between; gap:14px; align-items:center; margin-bottom:25px; } .topbar h2 { margin:0; } .top-actions { display:flex; gap:8px; align-items:center; } .user-pill { padding:8px 11px; border:1px solid var(--line); border-radius:99px; color:var(--muted); }
+    .page { display:none; } .page.active { display:block; } .cards { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:22px; } .card { border:1px solid var(--line); border-radius:15px; background:linear-gradient(145deg,#131f35,#10192b); padding:18px; box-shadow:0 12px 35px #0002; }
+    .stat-label { color:var(--muted); font-size:12px; } .stat-value { margin-top:7px; font-size:25px; font-weight:750; } .stat-note { margin-top:5px; color:var(--muted); font-size:12px; } .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; background:var(--muted); } .ok { background:var(--green); box-shadow:0 0 10px #32d58399; } .bad { background:var(--red); }
+    .section-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:25px 0 12px; } .section-head h3 { margin:0; } .device-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:13px; } .device-card { cursor:pointer; } .device-card.selected { border-color:var(--blue); box-shadow:0 0 0 2px #4f8cff33; }
+    .device-title { display:flex; justify-content:space-between; gap:10px; } .badge { padding:4px 8px; border-radius:99px; font-size:11px; background:#27334a; color:var(--muted); } .badge.online { color:#8af2bd; background:#164431; } .device-meta { display:grid; gap:5px; margin-top:14px; color:var(--muted); font-size:12px; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:9px; align-items:center; } .toolbar input { min-width:220px; } .table-wrap { overflow:auto; border:1px solid var(--line); border-radius:14px; background:#101a2c; } table { width:100%; min-width:720px; border-collapse:collapse; } th,td { padding:13px 15px; text-align:left; border-bottom:1px solid #20304a; } th { color:var(--muted); font-weight:500; font-size:12px; } tr:last-child td { border-bottom:0; } tr:hover td { background:#162541; } .file-name { max-width:350px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .actions { display:flex; gap:6px; white-space:nowrap; } .actions button { padding:6px 9px; font-size:12px; }
+    .empty { padding:35px; text-align:center; color:var(--muted); } .player-card video { width:100%; max-height:570px; background:#05070b; border-radius:12px; margin-top:10px; } .player-card { margin-top:20px; } pre { margin:0; padding:14px; max-height:360px; overflow:auto; border-radius:10px; background:#08101d; color:#b9d2ff; font:12px/1.55 ui-monospace,Consolas,monospace; white-space:pre-wrap; } .debug-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; } .debug-row { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--line); } .debug-row:last-child { border:0; }
+    #toast { position:fixed; right:22px; bottom:22px; max-width:420px; padding:12px 16px; border:1px solid var(--line); border-radius:10px; background:#172641; box-shadow:0 12px 30px #0006; } @media(max-width:900px) { .sidebar { width:70px; padding:18px 9px; } .brand { padding:4px 5px 25px; } .brand div:not(.brand-mark),.nav button span,.sidebar-footer span { display:none; } .nav button { text-align:center; padding:12px 5px; } .sidebar-footer { width:52px; } .cards { grid-template-columns:repeat(2,1fr); } } @media(max-width:600px) { .main { padding:18px 12px; } .topbar { align-items:flex-start; flex-direction:column; } .cards { grid-template-columns:1fr 1fr; gap:8px; } .card { padding:13px; } .debug-grid { grid-template-columns:1fr; } }
+      .tpms-wheel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px;max-width:460px}
+    .tpms-wheel-card{background:#172947;border:1px solid #294262;border-radius:12px;padding:12px;min-width:0}
+    .tpms-wheel-name{font-size:14px;color:#9bb0ce;margin-bottom:7px}.tpms-wheel-value{font-size:16px;line-height:1.35;font-weight:700;display:grid;gap:3px}.tpms-wheel-value span{white-space:nowrap}
+    @media(max-width:700px){.tpms-wheel-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}</style>
+  <style>
+    @media (max-width: 600px) {
+      .layout { display: block; }
+      .sidebar { width: 100%; padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .brand { padding: 2px 2px 10px; }
+      .brand .brand-mark { width: 34px; height: 34px; border-radius: 10px; font-size: 14px; }
+      .nav { display: flex; overflow-x: auto; gap: 4px; }
+      .nav button { flex: 1; min-width: 78px; padding: 9px 6px; text-align: center; white-space: nowrap; }
+      .nav button span { display: inline !important; font-size: 12px; }
+      .sidebar-footer { position: static; width: 100%; display: flex; margin-top: 8px; }
+      .sidebar-footer button { flex: 1; padding: 7px; }
+      .sidebar-footer span { display: inline !important; font-size: 12px; }
+      .main { padding: 14px 10px 28px; }
+      .topbar { margin-bottom: 16px; }
+      .top-actions { width: 100%; }
+      .user-pill { width: 100%; }
+      .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .stat-value { font-size: 20px; }
+      .section-head { align-items: flex-start; flex-direction: column; }
+      .section-head .toolbar { width: 100%; }
+      .toolbar input, .toolbar select { min-width: 0; width: 100%; }
+      .toolbar button { flex: 1; }
+      .player-card video { max-height: 42vh; }
+    }
+      .tpms-wheel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px;max-width:460px}
+    .tpms-wheel-card{background:#172947;border:1px solid #294262;border-radius:12px;padding:12px;min-width:0}
+    .tpms-wheel-name{font-size:14px;color:#9bb0ce;margin-bottom:7px}.tpms-wheel-value{font-size:16px;line-height:1.35;font-weight:700;display:grid;gap:3px}.tpms-wheel-value span{white-space:nowrap}
+    @media(max-width:700px){.tpms-wheel-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}</style>
+  <style>
+    .overview-layout { display:grid; grid-template-columns:minmax(360px,.9fr) minmax(480px,1.6fr); gap:16px; align-items:stretch; margin:18px 0 22px; }
+    .overview-state-panel,.overview-map-panel { min-width:0; border:1px solid var(--line); border-radius:15px; background:linear-gradient(145deg,#131f35,#10192b); padding:18px; box-shadow:0 12px 35px #0002; }
+    .overview-state-panel .section-head,.overview-map-panel .section-head { margin:0 0 12px; }
+    .overview-state-panel #vehicle-state { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .overview-state-panel #vehicle-state .card { padding:13px; box-shadow:none; background:#162541; }
+    #overview-map { width:100%; min-height:390px; height:clamp(390px,48vh,620px); border-radius:12px; overflow:hidden; background:#0b1322; }
+    .overview-map-empty { min-height:390px; height:100%; display:grid; place-items:center; color:var(--muted); text-align:center; padding:24px; }
+    .overview-devices-compact { max-height:150px; overflow:auto; }
+    .overview-device-panel { width:min(560px,100%); margin:0 0 20px auto; }
+    .overview-device-panel .section-head { margin:0 0 10px; }
+    .top-actions .overview-device-panel { width:250px; margin:0; }
+    .top-actions .overview-device-panel .device-grid { display:block; max-height:58px; overflow:hidden; }
+    .top-actions .overview-device-panel .device-card { min-height:0; padding:8px 11px; border-radius:11px; }
+    .top-actions .overview-device-panel .device-card:not(.selected) { display:none; }
+    .top-actions .overview-device-panel .device-title h3 { margin:0; font-size:13px; }
+    .top-actions .overview-device-panel .device-card > .muted,
+    .top-actions .overview-device-panel .device-meta,
+    .top-actions .overview-device-panel .device-live-state,
+    .top-actions .overview-device-panel .device-state-time { display:none; }
+    .device-live-state { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 12px; margin-top:14px; padding-top:12px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+    .device-live-state b { color:var(--text); font-weight:600; }
+    .device-state-time { margin-top:8px; color:var(--muted); font-size:11px; }
+    .date-group-row td { padding:8px 12px; background:#0d1729; border-bottom:1px solid var(--line); }
+    .date-group-button { width:100%; display:flex; align-items:center; gap:8px; text-align:left; padding:8px 10px; background:#172641; color:var(--text); }
+    .date-group-button span { color:var(--muted); font-size:12px; }
+    .compact-debug { margin-top:14px; }
+    .debug-launch { color:#b9d2ff; background:#172641; }
+    .debug-modal { position:fixed; inset:0; z-index:200; display:grid; place-items:center; padding:24px; background:#020817b8; }
+    .debug-modal.hidden { display:none; }
+    .debug-modal-card { width:min(1100px,96vw); height:min(760px,88vh); display:flex; flex-direction:column; padding:20px; border:1px solid var(--line); border-radius:16px; background:#101a2c; box-shadow:0 25px 80px #0009; }
+    .debug-modal-card pre { flex:1; max-height:none; margin-top:12px; }
+    @media(max-width:900px){.top-actions .overview-device-panel{width:100%}.overview-device-panel{width:100%}.overview-layout{grid-template-columns:1fr}.overview-state-panel #vehicle-state{grid-template-columns:repeat(2,minmax(0,1fr))}#overview-map{min-height:330px;height:42vh}}
+    @media(max-width:600px){.overview-state-panel,.overview-map-panel{padding:13px}.overview-state-panel #vehicle-state{grid-template-columns:1fr 1fr;gap:7px}.overview-state-panel #vehicle-state .card{padding:10px}.debug-modal{padding:10px}.debug-modal-card{width:100%;height:90vh;padding:14px}}
+      .tpms-wheel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px;max-width:460px}
+    .tpms-wheel-card{background:#172947;border:1px solid #294262;border-radius:12px;padding:12px;min-width:0}
+    .tpms-wheel-name{font-size:14px;color:#9bb0ce;margin-bottom:7px}.tpms-wheel-value{font-size:16px;line-height:1.35;font-weight:700;display:grid;gap:3px}.tpms-wheel-value span{white-space:nowrap}
+    @media(max-width:700px){.tpms-wheel-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}</style>
+  <style id="mobile-layout-tuning">
+    /* Phone-first refinements: keep controls readable and avoid squeezed cards. */
+    @media (max-width: 600px) {
+      body { font-size: 14px; overflow-x: hidden; }
+      button, input, select { min-height: 42px; }
+      .sidebar { position: sticky; top: 0; z-index: 80; background: #0d1628f5; }
+      .brand { padding: 0 2px 8px; }
+      .brand > div:last-child { font-size: 15px; }
+      .nav { margin: 0 -12px; padding: 0 12px 3px; scrollbar-width: none; }
+      .nav::-webkit-scrollbar { display: none; }
+      .nav button { flex: 0 0 auto; min-width: 104px; min-height: 40px; }
+      .sidebar-footer { display: none; }
+      .main { padding: 14px 10px 30px; }
+      .topbar { gap: 10px; margin-bottom: 14px; }
+      .topbar h2 { font-size: 22px; }
+      .top-actions { display: block; }
+      .top-actions .overview-device-panel { width: 100%; }
+      .top-actions .overview-device-panel .device-grid { max-height: none; }
+      .top-actions .overview-device-panel .device-card { padding: 9px 11px; }
+      .user-pill { display: block; margin-top: 8px; text-align: right; }
+      .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 15px; }
+      .cards .card { min-height: 112px; padding: 12px; }
+      .cards .stat-value { font-size: 22px; overflow-wrap: anywhere; }
+      .cards .stat-note { font-size: 11px; overflow-wrap: anywhere; }
+      .overview-layout { grid-template-columns: 1fr; gap: 12px; margin: 12px 0 16px; }
+      .overview-state-panel, .overview-map-panel { padding: 12px; border-radius: 13px; }
+      .overview-state-panel #vehicle-state { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .overview-state-panel #vehicle-state .card { padding: 11px; min-width: 0; }
+      .overview-state-panel #vehicle-state .stat-value { font-size: 18px !important; overflow-wrap: anywhere; }
+      .overview-map-panel .section-head { flex-direction: column; gap: 4px; }
+      #overview-map { min-height: 280px; height: 52vh; }
+      .tpms-wheel-grid { max-width: none; gap: 8px; }
+      .tpms-wheel-card { padding: 10px; }
+      .tpms-wheel-value { font-size: 15px; }
+      .section-head { margin: 16px 0 10px; gap: 8px; }
+      .section-head h3 { font-size: 18px; }
+      .section-head .toolbar { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+      .section-head .toolbar select, .section-head .toolbar input { grid-column: 1 / -1; width: 100%; }
+      .section-head .toolbar button { grid-column: 2; min-width: 76px; }
+      .table-wrap { max-height: 58vh; border-radius: 12px; -webkit-overflow-scrolling: touch; }
+      table { min-width: 820px; }
+      th, td { padding: 11px 12px; }
+      .file-name { max-width: 250px; }
+      .actions { gap: 5px; }
+      .actions button { min-height: 34px; padding: 6px 9px; }
+      .file-modal { padding: 8px !important; align-items: flex-end !important; }
+      .file-modal-card { width: 100% !important; max-height: 92vh; padding: 14px !important; border-radius: 16px 16px 10px 10px !important; }
+      .file-modal-card video { max-height: 62vh !important; }
+      .modal-log { max-height: 68vh !important; font-size: 12px; }
+      .debug-modal { padding: 8px; align-items: end; }
+      .debug-modal-card { height: 88vh; padding: 14px; border-radius: 16px 16px 10px 10px; }
+      #toast { left: 10px; right: 10px; bottom: 14px; max-width: none; }
+    }
+    @media (max-width: 380px) {
+      .cards { grid-template-columns: 1fr; }
+      .overview-state-panel #vehicle-state { grid-template-columns: 1fr; }
+      .top-actions .overview-device-panel .device-title h3 { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    }
+  </style>  <style id="vehicle-address-style">
+    .location-address { margin-top: 8px; color: var(--muted); font-size: 13px; font-weight: 500; line-height: 1.45; word-break: break-word; }
+    @media (max-width: 600px) { .location-address { font-size: 12px; } }
+  </style></head>
+<body>
+  <section id="login" class="login-shell"><div class="login-card"><div class="brand-mark">OP</div><h1>openpilot 本地服务器</h1><p class="muted">登录管理控制台，查看设备、驾驶数据和运行状态。</p><input id="username" placeholder="用户名" value="admin"><input id="password" type="password" placeholder="密码" onkeydown="if(event.key==='Enter') login()"><button class="primary" onclick="login()">登录控制台</button><div id="login-status" class="muted" style="margin-top:12px"></div></div></section>
+  <section id="app" class="layout hidden"><aside class="sidebar"><div class="brand"><div class="brand-mark">OP</div><div>openpilot<small>Local Server</small></div></div><nav class="nav"><button class="active" data-page="overview" onclick="showPage('overview',this)">◈ <span>运行总览</span></button><button data-page="devices" onclick="showPage('devices',this)">▣ <span>设备管理</span></button><button data-page="files" onclick="showPage('files',this)">▤ <span>数据文件</span></button><button data-page="debug" onclick="showPage('debug',this)">⌁ <span>调试状态</span></button></nav><div class="sidebar-footer"><button onclick="loadAll()">↻ <span>刷新数据</span></button><button onclick="logout()">⇥ <span>退出登录</span></button></div></aside>
+    <main class="main"><header class="topbar"><div><h2 id="page-title">运行总览</h2><div class="muted" id="last-refresh">尚未刷新</div></div><div class="top-actions"><span class="user-pill">管理员 <b id="user-name">admin</b></span></div></header>
+      <section id="page-overview" class="page active"><div class="cards"><div class="card"><div class="stat-label">API 服务</div><div class="stat-value"><i id="api-dot" class="status-dot"></i><span id="api-status">检查中</span></div><div class="stat-note" id="api-note">健康检查</div></div><div class="card"><div class="stat-label">数据库</div><div class="stat-value"><i id="db-dot" class="status-dot"></i><span id="db-status">检查中</span></div><div class="stat-note">PostgreSQL 连接</div></div><div class="card"><div class="stat-label">设备</div><div class="stat-value" id="device-count">0</div><div class="stat-note"><span id="online-count">0</span> 台在线</div></div><div class="card"><div class="stat-label">当前文件</div><div class="stat-value" id="file-count">0</div><div class="stat-note" id="file-note">请选择设备查看</div></div></div><div class="section-head"><h3>设备概览</h3><button onclick="showPage('devices')">查看全部</button></div><div id="overview-devices" class="device-grid"></div><div class="section-head"><h3>最后车辆状态</h3><span id="state-updated" class="muted">暂无数据</span></div><div id="vehicle-state" class="debug-grid"><div class="card empty">尚未收到车辆状态</div></div><div class="section-head"><h3>最近调试信息</h3><button onclick="showPage('debug')">打开调试</button></div><pre id="overview-log">等待刷新...</pre></section>
+      <section id="page-devices" class="page"><div class="card"><div class="section-head" style="margin-top:0"><h3>设备管理</h3><button class="primary" onclick="loadDevices()">刷新设备</button></div><div id="device-list" class="device-grid"></div></div></section>
+      <section id="page-files" class="page"><div class="card"><div class="section-head" style="margin-top:0"><h3>驾驶数据文件</h3><div class="toolbar"><select id="devices" onchange="loadFiles()"></select><input id="file-search" placeholder="搜索路径" oninput="renderFiles()"><button onclick="loadFiles()">刷新</button></div></div><div class="table-wrap"><table><thead><tr><th>序号</th><th>文件路径</th><th>类型</th><th>来源</th><th>大小</th><th>记录时间</th><th>上传时间</th><th>操作</th></tr></thead><tbody id="files"></tbody></table></div><div id="file-empty" class="empty hidden">暂无文件</div></div><div class="card player-card"><div class="section-head" style="margin-top:0"><h3>视频回放</h3><span id="playing-name" class="muted">尚未选择视频</span></div><video id="player" controls></video></div></section>
+      <section id="page-debug" class="page"><div class="debug-grid"><div class="card"><div class="section-head" style="margin-top:0"><h3>服务状态</h3><button onclick="loadHealth()">刷新</button></div><div class="debug-row"><span>API 服务</span><b id="debug-api">检查中</b></div><div class="debug-row"><span>数据库</span><b id="debug-db">检查中</b></div><div class="debug-row"><span>文件存储</span><b id="debug-storage">检查中</b></div><div class="debug-row"><span>最后检查时间</span><span id="debug-time" class="muted">-</span></div></div><div class="card"><div class="section-head" style="margin-top:0"><h3>存储占用</h3><button onclick="loadStorageSummary()">刷新</button></div><div class="debug-row"><span>全部业务文件</span><b id="storage-total">检查中</b></div><div class="debug-row"><span>视频</span><b id="storage-video">检查中</b></div><div class="debug-row"><span>驾驶日志</span><b id="storage-log">检查中</b></div><div class="debug-row"><span>轨迹 CSV</span><b id="storage-trajectory">检查中</b></div><div class="debug-row"><span>服务器可用空间</span><b id="storage-free">检查中</b></div><div class="muted" id="storage-note">全部业务文件上限 30 GiB；日志和 CSV 保留 60 天。</div><div class="section-head" style="margin-bottom:0"><span></span><button onclick="runStorageCleanup()">立即执行清理</button></div></div><div class="card"><div class="section-head" style="margin-top:0"><h3>选中设备</h3></div><pre id="device-json">尚未选择设备</pre></div></div><div class="card" style="margin-top:14px"><div class="section-head" style="margin-top:0"><h3>前端调试输出</h3><button onclick="clearLog()">清空</button></div><pre id="debug-log"></pre></div></section>
+    </main></section><div id="toast" class="hidden"></div>
+<script>
+let token=localStorage.getItem('openpilot_token')||'',devices=[],files=[],selectedDevice='',logLines=[];
+const api=async(path,options={})=>{const response=await fetch(path,{...options,headers:{...(options.headers||{}),Authorization:'Bearer '+token}});if(response.status===401){localStorage.removeItem('openpilot_token');token='';$('app')?.classList.add('hidden');$('login')?.classList.remove('hidden');$('login-status').textContent='Session expired. Please sign in again.';toast('invalid app token: please sign in again');throw Error('invalid app token');}return response;},$=id=>document.getElementById(id);
+function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+const localDateFormatter=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+function formatDate(value){if(!value)return'暂无';const date=value instanceof Date?value:new Date(value);if(Number.isNaN(date.getTime()))return String(value);return localDateFormatter.format(date).replace(/\//g,'-');}
+function dateAttr(value){return value?` title="原始时间：${esc(value)}"`:'';}
+function log(message,data=''){const line='['+new Date().toLocaleTimeString()+'] '+message+(data?' '+(typeof data==='string'?data:JSON.stringify(data)):'');logLines.push(line);logLines=logLines.slice(-120);const debugLog=$('debug-log'),overviewLog=$('overview-log');if(debugLog)debugLog.textContent=logLines.join('\n');if(overviewLog)overviewLog.textContent=logLines.slice(-8).join('\n')||'暂无调试信息';}
+function toast(message){$('toast').textContent=message;$('toast').classList.remove('hidden');setTimeout(()=>$('toast').classList.add('hidden'),3000);}
+function showPage(name,button){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('page-'+name).classList.add('active');document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===name));const titles={overview:'运行总览',devices:'设备管理',files:'数据文件',debug:'调试状态'};$('page-title').textContent=titles[name];if(name==='files')loadFiles();}
+async function login(){const response=await fetch('/api/v1/app/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('username').value,password:$('password').value})});const data=await response.json();if(!response.ok){$('login-status').textContent=data.detail||'登录失败';return;}token=data.access_token;localStorage.setItem('openpilot_token',token);$('login').classList.add('hidden');$('app').classList.remove('hidden');$('user-name').textContent=$('username').value;log('登录成功');loadAll();}
+function logout(){localStorage.removeItem('openpilot_token');location.reload();}
+async function loadHealth(){const started=Date.now();try{const h=await fetch('/health'),hd=await h.json(),r=await fetch('/ready'),rd=await r.json(),ok=h.ok,db=r.ok;$('api-status').textContent=ok?'正常':'异常';$('api-dot').className='status-dot '+(ok?'ok':'bad');$('api-note').textContent='响应 '+(Date.now()-started)+' ms';$('db-status').textContent=db?'正常':'异常';$('db-dot').className='status-dot '+(db?'ok':'bad');$('debug-api').textContent=ok&&hd.status==='ok'?'正常':'异常';$('debug-db').textContent=db&&rd.database==='ok'?'正常':'异常';if($('debug-storage'))$('debug-storage').textContent=ok&&hd.storage==='ok'?'正常':'异常';$('debug-time').textContent=formatDate(new Date());log('健康检查完成',{health:hd,ready:rd});}catch(e){$('api-status').textContent='异常';$('db-status').textContent='异常';$('api-dot').className='status-dot bad';$('db-dot').className='status-dot bad';if($('debug-api'))$('debug-api').textContent='无法连接';if($('debug-db'))$('debug-db').textContent='无法检查';if($('debug-storage'))$('debug-storage').textContent='无法检查';log('健康检查失败',e.message);}}
+async function loadDevices(){try{const r=await api('/api/v1/devices'),d=await r.json();if(!r.ok)throw Error(d.detail||'设备加载失败');devices=d;if(!selectedDevice&&devices[0])selectedDevice=devices[0].device_id;if(selectedDevice&&!devices.some(x=>x.device_id===selectedDevice))selectedDevice=devices[0]?.device_id||'';$('device-count').textContent=devices.length;$('online-count').textContent=devices.filter(x=>x.online).length;$('devices').innerHTML=devices.map(x=>`<option value="${esc(x.device_id)}">${esc(x.name||x.device_id)}</option>`).join('');$('devices').value=selectedDevice;renderDevices('overview-devices');renderDevices('device-list');updateDeviceJson();await loadFiles();log('设备刷新完成',{count:devices.length});}catch(e){log('设备加载失败',e.message);toast(e.message);}}
+function deviceStateMarkup(d){const s=d.state;if(!s)return'<div class="device-live-state muted">暂无车辆实时状态</div>';const value=(v,u='')=>v===null||v===undefined?'—':esc(String(v)+u);const lights=s.headlights_on?(s.high_beams_on?'远光':(s.low_beams_on?'近光':'大灯')):'关闭';return`<div class="device-live-state"><span>车速 <b>${value(s.speed_kmh,' km/h')}</b></span><span>发动机 <b>${s.engine_running?'运行':'停止'}</b></span><span>档位 <b>${value(s.gear)}</b></span><span>油量 <b>${value(s.fuel_percent,'%')}</b></span><span>电压 <b>${value(s.vehicle_voltage,' V')}</b></span><span>灯光 <b>${lights}</b></span></div><div class="device-state-time"${dateAttr(d.last_state_at)}>状态更新：${formatDate(d.last_state_at)}</div>`;}
+function renderDevices(target){$(target).innerHTML=devices.length?devices.map(d=>`<div class="card device-card ${d.device_id===selectedDevice?'selected':''}" onclick="selectDevice('${esc(d.device_id)}')"><div class="device-title"><h3>${esc(d.name||'未命名设备')}</h3><span class="badge ${d.online?'online':''}"><i class="status-dot ${d.online?'ok':''}"></i>${d.online?'在线':'离线'}</span></div><div class="muted">${esc(d.device_id)}</div><div class="device-meta"><span${dateAttr(d.last_seen_at)}>最后连接：${formatDate(d.last_seen_at)}</span><span>状态：${d.revoked?'已撤销':'正常'}</span></div>${deviceStateMarkup(d)}</div>`).join(''):'<div class="empty">暂无已注册设备</div>';}
+function selectDevice(id){selectedDevice=id;$('devices').value=id;renderDevices('overview-devices');renderDevices('device-list');updateDeviceJson();loadFiles();showPage('files');}
+function formatBytes(v){if(!v)return'0 B';if(v<1024)return v+' B';if(v<1024*1024)return(v/1024).toFixed(1)+' KB';if(v<1024*1024*1024)return(v/1024/1024).toFixed(1)+' MB';return(v/1024/1024/1024).toFixed(2)+' GB';}
+async function loadFiles(){if(!$('devices').value)return;selectedDevice=$('devices').value;try{const r=await api('/api/v1/devices/'+encodeURIComponent(selectedDevice)+'/files'),d=await r.json();if(!r.ok)throw Error(d.detail||'文件加载失败');files=d;$('file-count').textContent=files.filter(f=>!isSystemErrorFile(f)).length;$('file-note').textContent=selectedDevice;renderFiles();updateDeviceJson();log('文件刷新完成',{device:selectedDevice,count:files.length});}catch(e){log('文件加载失败',e.message);toast(e.message);}}
+function renderFiles(){const q=($('file-search')?.value||'').toLowerCase(),rows=files.filter(f=>(f.path||'').toLowerCase().includes(q));$('file-empty').classList.toggle('hidden',rows.length!==0);$('files').innerHTML=rows.map(f=>`<tr><td>${groupIndex + 1}</td><td class="file-name" title="${esc(f.path)}">${esc(f.path)}</td><td>${formatBytes(f.size_bytes)}</td><td>${esc(f.uploaded_at||'')}</td><td class="actions"><button onclick="play(${f.id},'${esc(f.path)}')">播放</button><button onclick="openReplay(${f.id})">轨迹</button><button onclick="downloadFile(${f.id})">下载</button><button class="danger" onclick="removeFile(${f.id})">删除</button></td></tr>`).join('');}
+function updateDeviceJson(){const d=devices.find(x=>x.device_id===selectedDevice);$('device-json').textContent=d?JSON.stringify({...d,files:files.length},null,2):'尚未选择设备';}
+async function fetchBlob(path){const r=await api(path);if(!r.ok){const d=await r.json();throw Error(d.detail||'请求失败');}return URL.createObjectURL(await r.blob());}
+async function play(id,name){try{const old=$('player').src;if(old)URL.revokeObjectURL(old);const url=await fetchBlob('/api/v1/files/'+id+'/stream');$('player').src=url;$('player').load();$('playing-name').textContent=name;$('player').play().catch(()=>toast('浏览器无法直接播放此视频，可能需要等待转码或使用 H.264 MP4'));log('开始播放',name);}catch(e){toast(e.message);log('播放失败',e.message);}}
+async function downloadFile(id){try{const url=await fetchBlob('/api/v1/files/'+id+'/download'),a=document.createElement('a');a.href=url;a.download='openpilot-file';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);log('开始下载','file_id='+id);}catch(e){toast(e.message);log('下载失败',e.message);}}
+function openReplay(id){window.open('/replay.html?file_id='+encodeURIComponent(id),'_blank','noopener');log('打开轨迹回放','file_id='+id);}
+async function removeFile(id){if(!confirm('确定删除这个文件？'))return;const r=await api('/api/v1/files/'+id,{method:'DELETE'});if(!r.ok){toast('删除失败');return;}toast('文件已删除');log('文件已删除','file_id='+id);loadFiles();}
+async function loadStorageSummary(){try{const r=await api('/api/v1/admin/storage'),d=await r.json();if(!r.ok)throw Error(d.detail||'存储信息加载失败');const t=d.totals||{},line=name=>`${formatBytes(t[name]?.bytes||0)} · ${t[name]?.count||0} 个文件`;$('storage-total').textContent=`${formatBytes(d.storage_used_bytes||0)} / ${formatBytes(d.storage_limit_bytes||0)}`;$('storage-video').textContent=line('video');$('storage-log').textContent=line('log');$('storage-trajectory').textContent=line('trajectory');$('storage-free').textContent=formatBytes(d.storage_free_bytes);$('storage-note').textContent=`全部业务文件上限 ${formatBytes(d.storage_limit_bytes)}；预览缓存上限 ${formatBytes(d.preview_cache_limit_bytes)}（当前 ${formatBytes(d.preview_cache_bytes)}）。日志和 CSV 保留 ${d.log_retention_days} 天。超限时按最早优先清理视频、日志、CSV。`;}catch(e){['storage-total','storage-video','storage-log','storage-trajectory','storage-free'].forEach(id=>$(id).textContent='无法读取');log('存储信息加载失败',e.message);}}
+async function runStorageCleanup(){if(!confirm('立即执行自动清理？会删除超过 60 天的日志和 CSV；若总量仍超限，再按最早优先删除视频、日志、CSV，并清理过多预览缓存。'))return;try{const r=await api('/api/v1/admin/storage/cleanup',{method:'POST'}),d=await r.json();if(!r.ok)throw Error(d.detail||'清理失败');toast(`清理完成：视频 ${d.deleted_videos||0}、日志 ${d.deleted_logs||0}、CSV ${d.deleted_trajectories||0}、预览 ${d.deleted_previews||0}`);log('存储清理完成',d);await loadStorageSummary();await loadFiles();}catch(e){toast(e.message);log('存储清理失败',e.message);}}
+async function loadAll(){await loadHealth();await loadDevices();await loadStorageSummary();$('last-refresh').textContent='最后刷新：'+formatDate(new Date());}
+function clearLog() { logLines=[];if($('debug-log'))$('debug-log').textContent='';if($('overview-log'))$('overview-log').textContent='暂无调试信息'; }
+if(token){$('login').classList.add('hidden');$('app').classList.remove('hidden');loadAll();}
+// Enhanced metadata/state view. Defined after the original prototype handlers
+// so deployments that already have the page cached receive the complete view.
+function renderFiles(){const q=($('file-search')?.value||'').toLowerCase(),rows=files.filter(f=>(f.path||'').toLowerCase().includes(q));$('file-empty').classList.toggle('hidden',rows.length!==0);$('files').innerHTML=rows.map(f=>`<tr><td>${groupIndex + 1}</td><td class="file-name" title="${esc(f.path)}">${esc(f.path)}</td><td>${esc(f.kind_name||'日志')}</td><td>${esc(f.camera||'—')}</td><td>${formatBytes(f.size_bytes)}</td><td>${esc(f.uploaded_at||'')}</td><td class="actions"><button onclick="play(${f.id},'${esc(f.path)}')">播放</button><button onclick="openReplay(${f.id})">轨迹</button><button onclick="downloadFile(${f.id})">下载</button><button class="danger" onclick="removeFile(${f.id})">删除</button></td></tr>`).join('');}
+function renderState(){const d=devices.find(x=>x.device_id===selectedDevice),s=d?.state;if(!$('vehicle-state'))return;if(!s){$('vehicle-state').innerHTML='<div class="card empty">尚未收到车辆状态</div>';if($('state-updated'))$('state-updated').textContent='暂无数据';return;}const val=(v,u='')=>v===null||v===undefined?'未提供':esc(String(v)+u);const lights=s.headlights_on?(s.high_beams_on?'远光灯':(s.low_beams_on?'近光灯':'大灯')):'关闭';const engine=s.engine_running===true?'运行':(s.engine_running===false?'未运行':'状态未更新');$('vehicle-state').innerHTML=[['发动机',engine],['档位',val(s.gear)],['油量',val(s.fuel_percent,'%')],['车辆电压',val(s.vehicle_voltage,' V')],['大灯',lights],['车门',s.door_open?'打开':'关闭'],['安全带',s.seatbelt_unlatched?'未系':'已系'],['双闪灯',s.hazard_lights?'开启':'关闭'],['设备环境温度',val(s.ambient_temperature_c,' °C')],['OP温度',val(s.cpu_temperature_c,' °C')],['位置',vehicleLocationMarkup(s.location,s.location_captured_at)]].map(x=>`<div class="card"><div class="stat-label">${x[0]}</div><div class="stat-value" style="font-size:20px">${x[1]}</div></div>`).join('');if($('state-updated'))$('state-updated').textContent='最后刷新：'+formatDate(d.last_state_at);}
+async function refreshVehicleState(){if(!selectedDevice){toast('请先选择设备');return;}try{const r=await api('/api/v1/devices/'+encodeURIComponent(selectedDevice)+'/commands/getVehicleState',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}),d=await r.json();if(!r.ok)throw Error(d.detail||'状态刷新失败');const result=d.result||{};if(!result.available||!result.state){toast(result.error?'设备状态线程异常':'设备尚未采集到车辆状态');log('主动刷新无可用状态',{error:result.error||'none',diagnostics:result.diagnostics||{}});return;}const device=devices.find(x=>x.device_id===selectedDevice);if(device){device.state=result.state;device.last_state_at=d.state_received_at||device.last_state_at;device.last_state_device_at=result.captured_at?new Date(result.captured_at*1000).toISOString():device.last_state_device_at;device.online=true;renderDevices('overview-devices');renderDevices('device-list');updateDeviceJson();}toast('车辆状态已刷新');log('主动刷新车辆状态',{device:selectedDevice,captured_at:result.captured_at,state_received_at:d.state_received_at,diagnostics:result.diagnostics||{}});}catch(e){toast(e.message);log('主动刷新车辆状态失败',e.message);}}
+function ensureStateRefreshButton(){const heads=[...document.querySelectorAll('.section-head')];const head=heads.find(x=>x.querySelector('h3')?.textContent.includes('最后车辆状态'));if(head&&!head.querySelector('[data-action="refresh-state"]')){const button=document.createElement('button');button.textContent='刷新车辆状态';button.dataset.action='refresh-state';button.onclick=refreshVehicleState;head.appendChild(button);}}
+ensureStateRefreshButton();
+function updateDeviceJson(){const d=devices.find(x=>x.device_id===selectedDevice);$('device-json').textContent=d?JSON.stringify({...d,files:files.length},null,2):'尚未选择设备';renderState();}
+let fileCategory='video-log';
+function fileMatchesCategory(file){
+  const path=(file.path||'').toLowerCase();
+  if(fileCategory==='trajectory') return file.kind==='trajectory' || path.endsWith('.csv');
+  if(fileCategory==='errors') return path.startsWith('errors/') || path.includes('/errors/');
+  return file.kind==='video' || (file.kind==='log' && !path.startsWith('errors/') && !path.includes('/errors/'));
+}
+function showFileCategory(category, button){
+  fileCategory=category;
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  $('page-files').classList.add('active');
+  document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
+  if(button)button.classList.add('active');
+  const titles={'video-log':'视频与驾驶日志','trajectory':'驾驶轨迹 CSV','errors':'错误日志'};
+  $('page-title').textContent=titles[category];
+  loadFiles();
+}
+function installFileNavigation(){
+  const nav=document.querySelector('.nav');
+  if(!nav||nav.dataset.fileViews)return;
+  nav.dataset.fileViews='1';
+  const legacy=nav.querySelector('[data-page="files"]');
+  if(legacy)legacy.remove();
+  const views=[['video-log','视频与驾驶日志'],['trajectory','驾驶轨迹 CSV'],['errors','错误日志']];
+  views.forEach(([category,label])=>{
+    const button=document.createElement('button');
+    button.dataset.page='files';
+    button.textContent='▤ '+label;
+    button.onclick=()=>showFileCategory(category,button);
+    nav.insertBefore(button,nav.querySelector('[data-page="debug"]'));
+  });
+}
+function ensureFileModal(){
+  let modal=$('file-modal');
+  if(modal)return modal;
+  modal=document.createElement('div');
+  modal.id='file-modal';
+  modal.className='file-modal hidden';
+  modal.innerHTML='<div class="file-modal-card"><div class="section-head" style="margin:0"><h3 id="file-modal-title">文件查看</h3><button onclick="closeFileModal()">关闭</button></div><div id="file-modal-body"></div></div>';
+  modal.onclick=e=>{if(e.target===modal)closeFileModal();};
+  document.body.append(modal);
+  return modal;
+}
+function closeFileModal(){const modal=$('file-modal');if(modal)modal.classList.add('hidden');const video=$('modal-player');if(video){video.pause();video.removeAttribute('src');}}
+async function play(id,name){
+  try{
+    const modal=ensureFileModal(),body=$('file-modal-body');
+    body.innerHTML='<div class="modal-loading">正在加载视频…</div>';
+    $('file-modal-title').textContent='视频播放：'+name;
+    modal.classList.remove('hidden');
+    const url=await fetchBlob('/api/v1/files/'+id+'/stream');
+    body.innerHTML='<video id="modal-player" controls autoplay playsinline></video>';
+    const video=$('modal-player');video.src=url;video.play().catch(()=>toast('浏览器无法直接解码此视频格式，请使用下载功能')); 
+  }catch(e){toast(e.message);closeFileModal();log('视频播放失败',e.message);}
+}
+async function viewErrorLog(id,name){
+  try{
+    const response=await api('/api/v1/files/'+id+'/text');
+    const content=await response.text();
+    if(!response.ok)throw Error(content||'日志读取失败');
+    const modal=ensureFileModal();$('file-modal-title').textContent='错误日志：'+name;$('file-modal-body').innerHTML='<pre class="modal-log">'+esc(content)+'</pre>';modal.classList.remove('hidden');
+  }catch(e){toast(e.message);log('日志读取失败',e.message);}
+}
+function installFileModalStyles(){
+  const style=document.createElement('style');
+  style.textContent='.table-wrap{max-height:560px;overflow:auto}.file-modal{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:18px;background:#020817cc}.file-modal.hidden{display:none}.file-modal-card{width:min(1100px,96vw);max-height:92vh;overflow:auto;padding:18px;border:1px solid var(--line);border-radius:16px;background:#101a2c;box-shadow:0 20px 70px #000b}.file-modal-card video{display:block;width:100%;max-height:76vh;background:#000;border-radius:10px}.modal-log{max-height:76vh;overflow:auto;white-space:pre-wrap;word-break:break-word}.modal-loading{text-align:center;padding:60px;color:var(--muted)}';
+  document.head.append(style);
+  const playerCard=$('player')?.closest('.player-card');
+  if(playerCard)playerCard.remove();
+}
+installFileModalStyles();
+const renderFilesByCategory=renderFiles;
+renderFiles=function(){
+  const q=($('file-search')?.value||'').toLowerCase();
+  const rows=files.filter(fileMatchesCategory).filter(f=>(f.path||'').toLowerCase().includes(q));
+  $('file-empty').classList.toggle('hidden',rows.length!==0);
+  $('files').innerHTML=rows.map(f=>`<tr><td>${groupIndex + 1}</td><td class="file-name" title="${esc(f.path)}">${esc(f.path)}</td><td>${esc(f.kind_name||f.kind||'')}</td><td>${esc(f.camera||'')}</td><td>${formatBytes(f.size_bytes)}</td><td>${esc(f.uploaded_at||'')}</td><td class="actions"><button onclick="play(${f.id},'${esc(f.path)}')">播放</button><button onclick="openReplay(${f.id})">轨迹</button><button onclick="downloadFile(${f.id})">下载</button><button class="danger" onclick="removeFile(${f.id})">删除</button></td></tr>`).join('');
+};
+installFileNavigation();
+const renderFilesWithActions=renderFiles;
+renderFiles=function(){
+  const q=($('file-search')?.value||'').toLowerCase();
+  const rows=files.filter(fileMatchesCategory).filter(f=>(f.path||'').toLowerCase().includes(q));
+  $('file-empty').classList.toggle('hidden',rows.length!==0);
+  $('files').innerHTML=rows.map(f=>{
+    const view=f.kind==='log'&&((f.path||'').startsWith('errors/')||((f.path||'').includes('/errors/')))
+      ? `<button onclick="viewErrorLog(${f.id},'${esc(f.path)}')">查看</button>`
+      : f.kind==='video' ? `<button onclick="play(${f.id},'${esc(f.path)}')">播放</button>`
+      : f.kind==='trajectory' ? `<button onclick="openReplay(${f.id})">轨迹</button>` : '';
+    return `<tr><td>${groupIndex + 1}</td><td class="file-name" title="${esc(f.path)}">${esc(f.path)}</td><td>${esc(f.kind_name||f.kind||'')}</td><td>${esc(f.camera||'')}</td><td>${formatBytes(f.size_bytes)}</td><td${dateAttr(f.recorded_at)}>${formatRecordedTime(f)}</td><td${dateAttr(f.uploaded_at)}>${formatDate(f.uploaded_at)}</td><td class="actions">${view}<button onclick="downloadFile(${f.id})">下载</button><button class="danger" onclick="removeFile(${f.id})">删除</button></td></tr>`;
+  }).join('');
+};
+function isSystemErrorFile(file){const path=(file.path||'').toLowerCase();return file.kind==='log'&&(path.startsWith('errors/')||path.includes('/errors/'));}
+deviceStateMarkup=function(d){const s=d.state;if(!s)return'<div class="device-live-state muted">暂无车辆实时状态</div>';const value=(v,u='')=>v===null||v===undefined?'—':esc(String(v)+u);const lights=s.headlights_on?(s.high_beams_on?'远光':(s.low_beams_on?'近光':'大灯')):'关闭';return`<div class="device-live-state"><span>发动机 <b>${s.engine_running?'运行':'停止'}</b></span><span>档位 <b>${value(s.gear)}</b></span><span>油量 <b>${value(s.fuel_percent,'%')}</b></span><span>电压 <b>${value(s.vehicle_voltage,' V')}</b></span><span>灯光 <b>${lights}</b></span><span>OP温度 <b>${value(s.cpu_temperature_c,' °C')}</b></span></div><div class="device-state-time"${dateAttr(d.last_state_at)}>状态更新：${formatDate(d.last_state_at)}</div>`;};
+const vehicleAddressCache=new Map(),vehicleAddressRequests=new Set();let vehicleGeocoder=null;
+function vehicleLocationMarkup(location,locationCapturedAt){
+  const lat=Number(location?.latitude),lng=Number(location?.longitude);
+  if(!Number.isFinite(lat)||!Number.isFinite(lng))return '未提供';
+  const key=`${lat.toFixed(4)},${lng.toFixed(4)}`;
+  const cached=vehicleAddressCache.get(key);
+  if(!cached&&!vehicleAddressRequests.has(key)){vehicleAddressRequests.add(key);setTimeout(()=>resolveVehicleAddress(lat,lng,key),0);}
+  const gcj=wgs84ToGcj02(lng,lat);
+  const captured=Number(locationCapturedAt),time=Number.isFinite(captured)&&captured>0?formatDate(new Date(captured*1000)):'未知';
+  return `<div>${gcj[1].toFixed(7)}, ${gcj[0].toFixed(7)}</div><div class="muted">定位时间：${esc(time)}</div><div class="location-address" id="vehicle-location-address" data-location-key="${key}">${esc(cached||'正在查询大致位置…')}</div>`;
+}
+function resolveVehicleAddress(lat,lng,key){
+  if(!window.AMap||!AMap.plugin){setTimeout(()=>resolveVehicleAddress(lat,lng,key),600);return;}
+  AMap.plugin(['AMap.Geocoder'],()=>{
+    try{
+      if(!vehicleGeocoder)vehicleGeocoder=new AMap.Geocoder({extensions:'base'});
+      const pos=wgs84ToGcj02(lng,lat);
+      vehicleGeocoder.getAddress(pos,(status,result)=>{
+        vehicleAddressRequests.delete(key);
+        const address=status==='complete'&&result?.regeocode?.formattedAddress;
+        const text=address||'暂时无法获取地址';
+        vehicleAddressCache.set(key,text);
+        const target=$('vehicle-location-address');
+        if(target?.dataset.locationKey===key)target.textContent=text;
+      });
+    }catch(e){vehicleAddressRequests.delete(key);vehicleAddressCache.set(key,'暂时无法获取地址');}
+  });
+}renderState=function(){const d=devices.find(x=>x.device_id===selectedDevice),s=d?.state;if(!$('vehicle-state'))return;if(!s){$('vehicle-state').innerHTML='<div class="card empty">尚未收到车辆状态</div>';if($('state-updated'))$('state-updated').textContent='暂无数据';return;}const val=(v,u='')=>v===null||v===undefined?'未提供':esc(String(v)+u);const lights=s.headlights_on?(s.high_beams_on?'远光灯':(s.low_beams_on?'近光灯':'大灯')):'关闭';const engine=s.engine_running===true?'运行':(s.engine_running===false?'未运行':'状态未更新');$('vehicle-state').innerHTML=[['发动机',engine],['档位',val(s.gear)],['油量',val(s.fuel_percent,'%')],['车辆电压',val(s.vehicle_voltage,' V')],['大灯',lights],['车门',s.door_open?'打开':'关闭'],['安全带',s.seatbelt_unlatched?'未系':'已系'],['双闪灯',s.hazard_lights?'开启':'关闭'],['设备环境温度',val(s.ambient_temperature_c,' °C')],['OP温度',val(s.cpu_temperature_c,' °C')],['位置',vehicleLocationMarkup(s.location,s.location_captured_at)]].map(x=>`<div class="card"><div class="stat-label">${x[0]}</div><div class="stat-value" style="font-size:20px">${x[1]}</div></div>`).join('');if($('state-updated'))$('state-updated').textContent='最后刷新：'+formatDate(d.last_state_at);};
+const fileCountLabel=document.querySelector('#file-count')?.parentElement?.querySelector('.stat-label');
+if(fileCountLabel)fileCountLabel.textContent='驾驶数据';
+const originalLoadFiles=loadFiles;
+loadFiles=async function(){await originalLoadFiles();if(selectedDevice)$('file-note').textContent=selectedDevice+' · 不含系统错误日志';};
+function formatRecordedTime(file){
+  if(!file||!file.recorded_at)return '-';
+  const formatted=formatDate(file.recorded_at);
+  return file.recorded_at_precision==='date'?formatted.slice(0,10)+'（仅日期）':formatted;
+}function fileDateKey(file){
+  const path=(file.path||'').replace(/\\/g,'/');
+  const trajectory=path.match(/(?:^|\/)trajectory\/(20\d{2}-\d{2}-\d{2})(?:\/|$)/i);
+  if(trajectory)return trajectory[1];
+  const route=path.match(/(20\d{2}-\d{2}-\d{2})--/);
+  if(route)return route[1];
+  const uploaded=formatDate(file.uploaded_at);
+  return uploaded&&/^20\d{2}-\d{2}-\d{2}/.test(uploaded)?uploaded.slice(0,10):'日期未知';
+}
+let collapsedFileDates={};
+function toggleFileDate(date){collapsedFileDates[date]=!collapsedFileDates[date];renderFiles();}
+renderFiles=function(){
+  const q=($('file-search')?.value||'').toLowerCase();
+  const rows=files.filter(fileMatchesCategory).filter(f=>(f.path||'').toLowerCase().includes(q));
+  $('file-empty').classList.toggle('hidden',rows.length!==0);
+  const groups={};
+  rows.forEach(file=>(groups[fileDateKey(file)]??=[]).push(file));
+  const dates=Object.keys(groups).sort((a,b)=>b.localeCompare(a));
+  const html=[];
+  for(const date of dates){
+    const group=groups[date],collapsed=!!collapsedFileDates[date];
+    html.push(`<tr class="date-group-row"><td colspan="8"><button class="date-group-button" onclick="toggleFileDate('${esc(date)}')">${collapsed?'▶':'▼'} ${esc(date)} <span>${group.length} 个文件</span></button></td></tr>`);
+    if(collapsed)continue;
+    for(const [groupIndex, f] of group.entries()){
+      const view=f.kind==='log'&&isSystemErrorFile(f)
+        ? `<button onclick="viewErrorLog(${f.id},'${esc(f.path)}')">查看</button>`
+        : f.kind==='video' ? `<button onclick="play(${f.id},'${esc(f.path)}')">播放</button>`
+        : f.kind==='trajectory' ? `<button onclick="openReplay(${f.id})">轨迹</button>` : '';
+      html.push(`<tr><td>${groupIndex + 1}</td><td class="file-name" title="${esc(f.path)}">${esc(f.path)}</td><td>${esc(f.kind_name||f.kind||'')}</td><td>${esc(f.camera||'')}</td><td>${formatBytes(f.size_bytes)}</td><td${dateAttr(f.recorded_at)}>${formatRecordedTime(f)}</td><td${dateAttr(f.uploaded_at)}>${formatDate(f.uploaded_at)}</td><td class="actions">${view}<button onclick="downloadFile(${f.id})">下载</button><button class="danger" onclick="removeFile(${f.id})">删除</button></td></tr>`);
+    }
+  }
+  $('files').innerHTML=html.join('');
+};
+let liveSocket=null;let liveRetry=null;
+function connectLive(){if(!token||liveSocket&&[WebSocket.OPEN,WebSocket.CONNECTING].includes(liveSocket.readyState))return;const scheme=location.protocol==='https:'?'wss':'ws';liveSocket=new WebSocket(`${scheme}://${location.host}/api/v1/admin/ws`);liveSocket.onopen=()=>{liveSocket.send(JSON.stringify({token}));log('实时通道已连接');};liveSocket.onmessage=event=>{try{const msg=JSON.parse(event.data);if(msg.type==='state'){const d=devices.find(x=>x.device_id===msg.device_id);if(d){d.state=msg.state;d.last_state_at=msg.last_state_at;renderDevices('overview-devices');updateDeviceJson();}}else if(msg.type==='device'){const d=devices.find(x=>x.device_id===msg.device_id);if(d){d.online=!!msg.online;d.last_seen_at=msg.last_seen_at;renderDevices('overview-devices');renderDevices('device-list');$('online-count').textContent=devices.filter(x=>x.online).length;}}else if(msg.type==='file'&&msg.device_id===selectedDevice){loadFiles();}}catch(e){log('实时消息解析失败',e.message);}};liveSocket.onclose=()=>{log('实时通道已断开');if(token){clearTimeout(liveRetry);liveRetry=setTimeout(connectLive,3000);}};liveSocket.onerror=()=>{try{liveSocket.close();}catch(e){}};}
+let liveBackoff=1000;
+function handleLiveMessage(msg){
+  if(msg.type==='state'){
+    const d=devices.find(x=>x.device_id===msg.device_id);
+    if(d){d.state=msg.state;d.last_state_at=msg.last_state_at;renderDevices('overview-devices');updateDeviceJson();}
+  }else if(msg.type==='device'){
+    const d=devices.find(x=>x.device_id===msg.device_id);
+    if(d){d.online=!!msg.online;d.last_seen_at=msg.last_seen_at;renderDevices('overview-devices');renderDevices('device-list');$('online-count').textContent=devices.filter(x=>x.online).length;}
+  }else if(msg.type==='file'&&msg.device_id===selectedDevice){loadFiles();}
+}
+// Use one socket instance at a time. A browser error is followed by onclose;
+// closing again from onerror created a reconnect storm and made the UI appear empty.
+function connectLive(){
+  if(!token||liveSocket&&[WebSocket.OPEN,WebSocket.CONNECTING].includes(liveSocket.readyState))return;
+  const scheme=location.protocol==='https:'?'wss':'ws';
+  const socket=new WebSocket(`${scheme}://${location.host}/api/v1/admin/ws`);
+  liveSocket=socket;
+  socket.onopen=()=>{if(liveSocket!==socket)return;liveBackoff=1000;socket.send(JSON.stringify({token}));log('实时通道已连接');loadDevices().catch(()=>{});};
+  socket.onmessage=event=>{try{handleLiveMessage(JSON.parse(event.data));}catch(e){log('实时消息解析失败',e.message);}};
+  socket.onerror=()=>{if(liveSocket===socket)log('实时通道网络错误');};
+  socket.onclose=event=>{
+    if(liveSocket!==socket)return;
+    liveSocket=null;log('实时通道已断开',event.code);
+    if(event.code===1008){localStorage.removeItem('openpilot_token');token='';$('app')?.classList.add('hidden');$('login')?.classList.remove('hidden');$('login-status').textContent='Session expired. Please sign in again.';toast('invalid app token: please sign in again');return;}
+    if(token){clearTimeout(liveRetry);const delay=liveBackoff;liveBackoff=Math.min(liveBackoff*2,30000);liveRetry=setTimeout(connectLive,delay);}
+  };
+}
+let overviewMap=null,overviewMarker=null,overviewMapReady=false;
+function wgs84ToGcj02(lng,lat){const pi=Math.PI,a=6378245.0,ee=0.006693421622965943;function out(x,y){return x<72.004||x>137.8347||y<0.8293||y>55.8271}function transformLng(x,y){let r=300+2*x+3*y+.2*y*y+.1*x*y+.2*Math.sqrt(Math.abs(x));r+=(20*Math.sin(6*x*pi)+20*Math.sin(2*x*pi))*2/3;r+=(20*Math.sin(x*pi)+40*Math.sin(x*pi/3))*2/3;r+=(150*Math.sin(x*pi/12)+300*Math.sin(x*pi/30))*2/3;return r}function transformLat(x,y){let r=-100+2*x+3*y+.2*y*y+.1*x*y+.2*Math.sqrt(Math.abs(x));r+=(20*Math.sin(6*x*pi)+20*Math.sin(2*x*pi))*2/3;r+=(20*Math.sin(y*pi)+40*Math.sin(y*pi/3))*2/3;r+=(160*Math.sin(y*pi/12)+320*Math.sin(y*pi/30))*2/3;return r}if(out(lng,lat))return[lng,lat];let dLat=transformLat(lng-105,lat-35),dLng=transformLng(lng-105,lat-35),rad=lat/180*pi,magic=Math.sin(rad),m=1-ee*magic*magic,s=Math.sqrt(m);dLat=dLat*180/((a*(1-ee))/(m*s)*pi);dLng=dLng*180/(a/s*Math.cos(rad)*pi);return[lng+dLng,lat+dLat];}
+function updateOverviewMap(){const host=$('overview-map'),d=devices.find(x=>x.device_id===selectedDevice),p=d?.state?.location;if(!host||!overviewMapReady||$('app')?.classList.contains('hidden'))return;if(!overviewMap){overviewMap=new AMap.Map(host,{zoom:5,center:[116.397428,39.90923],viewMode:'2D',resizeEnable:true});const empty=host.querySelector('.overview-map-empty');if(empty)empty.remove();}else{overviewMap.resize();}if(!p||!Number.isFinite(Number(p.longitude))||!Number.isFinite(Number(p.latitude))){if($('map-status'))$('map-status').textContent=p?'位置数据无效':'等待车辆位置';if(overviewMarker)overviewMarker.hide();return;}const pos=wgs84ToGcj02(Number(p.longitude),Number(p.latitude)),captured=Number(d?.state?.location_captured_at),time=Number.isFinite(captured)&&captured>0?formatDate(new Date(captured*1000)):'未知';if(!overviewMarker){overviewMarker=new AMap.Marker({position:pos,title:'车辆当前位置'});overviewMarker.setMap(overviewMap);}else{overviewMarker.setPosition(pos);overviewMarker.show();}overviewMap.setZoomAndCenter(16,pos);if($('map-status'))$('map-status').textContent=`定位时间：${time}`;}
+function loadAdminMap(){if(window.AMap){overviewMapReady=true;updateOverviewMap();return;}window._AMapSecurityConfig={securityJsCode:'0d4dd413a79b2d0f14e66f27847477c7'};window.initAdminMapCallback=function(){overviewMapReady=true;updateOverviewMap();};const s=document.createElement('script');s.src='https://webapi.amap.com/maps?v=2.0&key=bd9214a1dd0fed6fd83fe39231be008d&callback=initAdminMapCallback';s.onerror=()=>{if($('map-status'))$('map-status').textContent='地图加载失败，请检查网络或 Key';const empty=$('overview-map')?.querySelector('.overview-map-empty');if(empty)empty.textContent='地图加载失败，请检查网络或 Key';};document.head.appendChild(s);}
+function toggleDebugModal(open){const modal=$('debug-modal');if(modal)modal.classList.toggle('hidden',open===false?!0:!1);}
+function enhanceOverview(){const overview=$('page-overview'),state=$('vehicle-state'),stateHead=state?.previousElementSibling,deviceHead=$('overview-devices')?.previousElementSibling,debugHead=$('overview-log')?.previousElementSibling;if(!overview||!state||overview.dataset.enhanced)return;overview.dataset.enhanced='1';const layout=document.createElement('div');layout.className='overview-layout';const statePanel=document.createElement('div');statePanel.className='overview-state-panel';statePanel.append(stateHead,state);const mapPanel=document.createElement('div');mapPanel.className='overview-map-panel';mapPanel.innerHTML='<div class="section-head"><h3>车辆最后位置</h3><span id="map-status" class="muted">等待车辆位置</span></div><div id="overview-map"><div class="overview-map-empty">地图加载中…</div></div>';layout.append(statePanel,mapPanel);overview.insertBefore(layout,deviceHead);$('overview-devices')?.classList.add('overview-devices-compact');if(debugHead){debugHead.classList.add('compact-debug');debugHead.innerHTML='<h3>运行调试信息</h3><button class="debug-launch" onclick="toggleDebugModal(true)">打开调试窗口</button>';}const modal=document.createElement('div');modal.id='debug-modal';modal.className='debug-modal hidden';modal.onclick=e=>{if(e.target===modal)toggleDebugModal(false)};modal.innerHTML='<div class="debug-modal-card"><div class="section-head" style="margin:0"><h3>运行调试信息</h3><button onclick="toggleDebugModal(false)">关闭</button></div></div>';modal.querySelector('.debug-modal-card').append($('overview-log'));document.body.append(modal);loadAdminMap();}
+const originalUpdateDeviceJson=updateDeviceJson;updateDeviceJson=function(){originalUpdateDeviceJson();updateOverviewMap();};
+enhanceOverview();
+function arrangeOverview(){
+  const overview=$('page-overview'),devicesHost=$('overview-devices'),layout=overview?.querySelector('.overview-layout');
+  if(!overview||!devicesHost||overview.dataset.devicePanel)return;
+  const heading=devicesHost.previousElementSibling;
+  if(!heading)return;
+  overview.dataset.devicePanel='1';
+  const panel=document.createElement('div');
+  panel.className='overview-device-panel';
+  panel.append(heading,devicesHost);
+  overview.insertBefore(panel,layout||null);
+  overview.querySelector('.compact-debug')?.remove();
+  const debugHeading=$('overview-log')?.previousElementSibling;
+  if(debugHeading)debugHeading.remove();
+  $('debug-modal')?.remove();
+  $('overview-log')?.remove();
+}
+arrangeOverview();
+function dockDeviceOverview(){
+  const panel=document.querySelector('.overview-device-panel'),topActions=document.querySelector('.top-actions'),userPill=topActions?.querySelector('.user-pill');
+  if(!panel||!topActions||panel.dataset.docked)return;
+  panel.dataset.docked='1';
+  panel.querySelector('.section-head')?.remove();
+  topActions.insertBefore(panel,userPill||null);
+}
+dockDeviceOverview();
+const originalLoadAll=loadAll;loadAll=async function(){await originalLoadAll();connectLive();updateOverviewMap();};
+if(token){connectLive();}
+// TPMS display extension. The server stores these fields as ordinary JSON,
+// so older devices without TPMS support remain fully compatible.
+const _renderState=typeof renderState==='function'?renderState:null;
+if(_renderState){renderState=function(){
+  _renderState();
+  const box=$('vehicle-state'),d=devices.find(x=>x.device_id===selectedDevice),s=d&&d.state;
+  if(!box||!s)return;
+  box.querySelectorAll('.tpms-state-block').forEach(x=>x.remove());
+  const p=s.tire_pressure_bar||{},t=s.tire_temperature_c||{};
+  // Always render all four wheels; unavailable values are displayed as "-".
+  const pressure=x=>{x=Number(x);return Number.isFinite(x)&&x>=0.3&&x<=4.0?esc(x.toFixed(2)+' bar'):'-';};
+  const temperature=x=>{x=Number(x);return Number.isFinite(x)&&x>=-40&&x<=120?esc(x.toFixed(0)+' °C'):'-';};
+  box.insertAdjacentHTML('beforeend',`<div class="tpms-state-block card"><div class="stat-label">轮胎状态</div><div class="tpms-wheel-grid">${[["左前",p.front_left,t.front_left],["右前",p.front_right,t.front_right],["左后",p.rear_left,t.rear_left],["右后",p.rear_right,t.rear_right]].map(w=>`<div class="tpms-wheel-card"><div class="tpms-wheel-name">${w[0]}</div><div class="tpms-wheel-value"><span>${pressure(w[1])}</span><span>${temperature(w[2])}</span></div></div>`).join("")}</div></div>`);
+};}
+// Public-server media and network diagnostics. Media URLs use a short-lived
+// file-specific ticket, allowing the native video element to use HTTP Range
+// requests instead of downloading the entire video into a Blob first.
+async function getStreamUrl(id){const r=await api('/api/v1/files/'+id+'/stream-url');const d=await r.json();if(!r.ok)throw Error(d.detail||'无法获取播放地址');return d.url;}
+async function play(id,name){
+  try{
+    const modal=ensureFileModal(),body=$('file-modal-body');
+    body.innerHTML='<div class="modal-loading">正在请求视频流…首次播放 HEVC 视频可能需要服务器生成兼容预览。</div>';
+    $('file-modal-title').textContent='视频播放：'+name;
+    modal.classList.remove('hidden');
+    const url=await getStreamUrl(id);
+    body.innerHTML='<video id="modal-player" controls autoplay playsinline preload="metadata"></video>';
+    const video=$('modal-player');
+    video.src=url;
+    video.addEventListener('waiting',()=>log('视频缓冲中',name));
+    video.addEventListener('error',()=>{toast('视频无法播放：可能正在生成预览、网络过慢或编码不兼容');log('视频播放错误',{name,code:video.error?.code});});
+    video.play().catch(()=>{});
+  }catch(e){toast(e.message);closeFileModal();log('视频播放失败',e.message);}
+}
+function formatMbps(bytesPerSecond){const n=Number(bytesPerSecond);return Number.isFinite(n)&&n>0?(n*8/1000/1000).toFixed(2)+' Mbps':'暂无数据';}
+async function loadNetworkDiagnostics(){
+  const box=$('network-device-speed');if(!box)return;
+  try{const r=await api('/api/v1/admin/network'),d=await r.json();if(!r.ok)throw Error(d.detail||'读取失败');const m=(d.recent_device_uploads||{})[selectedDevice],min=formatBytes(d.device_upload_metric_min_bytes||16*1024*1024);box.textContent=m?formatMbps(m.bytes_per_second)+' · '+formatBytes(m.bytes)+' · '+formatDate(m.recorded_at)+' · '+(m.path||''):'暂无有效测速：仅记录 ≥ '+min+' 的完整上传；重启后清空';}catch(e){box.textContent='无法读取：'+e.message;}
+}
+async function runBrowserSpeedTest(){
+  const box=$('network-browser-speed');if(!box)return;box.textContent='测试中（下载 16 MiB）…';
+  try{const started=performance.now(),r=await api('/api/v1/admin/network-test?size_mib=16',{cache:'no-store'}),data=await r.arrayBuffer(),seconds=(performance.now()-started)/1000;if(!r.ok)throw Error('测速请求失败');box.textContent=formatMbps(data.byteLength/Math.max(seconds,.001))+' · '+formatBytes(data.byteLength)+' / '+seconds.toFixed(2)+' 秒';log('浏览器到服务器测速完成',{bytes:data.byteLength,seconds});}catch(e){box.textContent='测速失败：'+e.message;log('浏览器测速失败',e.message);}
+}
+function installNetworkDiagnostics(){
+  const host=document.querySelector('#page-debug .debug-grid');if(!host||$('network-diagnostics'))return;
+  const card=document.createElement('div');card.id='network-diagnostics';card.className='card';
+  card.innerHTML='<div class="section-head" style="margin-top:0"><h3>网络与视频诊断</h3><button onclick="runBrowserSpeedTest()">测速</button></div><div class="debug-row"><span>浏览器 ↔ 服务器延迟</span><b id="network-latency">点击测速</b></div><div class="debug-row"><span>浏览器 → 服务器下载</span><b id="network-browser-speed">点击测速</b></div><div class="debug-row"><span>设备 → 服务器最近上传</span><b id="network-device-speed">读取中…</b></div><div class="muted">测速请求最长 30 秒；设备测速仅记录 ≥ 16 MiB 的完整实际上传，服务重启后自动清空。</div>';
+  host.append(card);
+}
+installNetworkDiagnostics();
+const _loadNetworkDiagnostics=loadNetworkDiagnostics;
+const _selectDeviceForNetwork=selectDevice;
+selectDevice=function(id){_selectDeviceForNetwork(id);setTimeout(_loadNetworkDiagnostics,0);};
+if(token)_loadNetworkDiagnostics();
+// Extend the network card with an upload test. The payload is discarded by
+// the server and never becomes a stored driving-data file.
+function installUploadSpeedRow(){const card=$('network-diagnostics');if(!card||$('network-upload-speed'))return;const note=card.querySelector('.muted');note?.insertAdjacentHTML('beforebegin','<div class="debug-row"><span>浏览器 → 服务器上传</span><b id="network-upload-speed">点击测速</b></div>');const button=card.querySelector('button');if(button)button.textContent='测试上传/下载';}
+async function runBrowserSpeedTest(){
+  const down=$('network-browser-speed'),up=$('network-upload-speed');
+  if(down)down.textContent='下载测试中（16 MiB）…';if(up)up.textContent='等待上传测试…';
+  try{const started=performance.now(),r=await api('/api/v1/admin/network-test?size_mib=16',{cache:'no-store'}),data=await r.arrayBuffer(),seconds=(performance.now()-started)/1000;if(!r.ok)throw Error('下载测速请求失败');if(down)down.textContent=formatMbps(data.byteLength/Math.max(seconds,.001))+' · '+formatBytes(data.byteLength)+' / '+seconds.toFixed(2)+' 秒';}catch(e){if(down)down.textContent='下载测速失败：'+e.message;}
+  try{if(up)up.textContent='上传测试中（16 MiB）…';const payload=new Uint8Array(16*1024*1024),started=performance.now(),r=await api('/api/v1/admin/network-test/upload',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:payload}),d=await r.json(),seconds=(performance.now()-started)/1000;if(!r.ok)throw Error(d.detail||'上传测速请求失败');if(up)up.textContent=formatMbps(d.bytes_per_second)+' · '+formatBytes(d.bytes)+' / '+seconds.toFixed(2)+' 秒';log('浏览器上传/下载测速完成',{download:down?.textContent,upload:up?.textContent});}catch(e){if(up)up.textContent='上传测速失败：'+e.message;log('浏览器测速失败',e.message);}
+}
+installUploadSpeedRow();
+function networkTimeoutFetch(path,options={},timeoutMs=30000){
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+  return api(path,{...options,signal:controller.signal}).catch(error=>{
+    if(error&&error.name==='AbortError')throw Error('测速超时（30 秒）');
+    throw error;
+  }).finally(()=>clearTimeout(timer));
+}
+async function networkTestRequest(run,timeoutMs=30000){
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try{return await run(controller.signal);}catch(error){
+    if(error&&error.name==='AbortError')throw Error('测速超时（30 秒）');
+    throw error;
+  }finally{clearTimeout(timer);}
+}
+async function measureBrowserLatency(){
+  const box=$('network-latency');if(!box)return;
+  box.textContent='正在测试 5 次…';const samples=[];
+  for(let i=0;i<5;i++){
+    const started=performance.now();
+    try{const response=await networkTestRequest(signal=>api('/api/v1/admin/ping',{cache:'no-store',signal}),5000);if(!response.ok)throw Error('延迟请求失败');samples.push(performance.now()-started);}catch(error){box.textContent='延迟测试失败：'+error.message;return;}
+  }
+  const min=Math.min(...samples),max=Math.max(...samples),avg=samples.reduce((a,b)=>a+b,0)/samples.length;
+  box.textContent='平均 '+avg.toFixed(0)+' ms · 最低 '+min.toFixed(0)+' · 最高 '+max.toFixed(0);
+}
+async function runBrowserSpeedTest(){
+  const down=$('network-browser-speed'),up=$('network-upload-speed');
+  await measureBrowserLatency();
+  if(down)down.textContent='下载测试中（16 MiB）…';if(up)up.textContent='等待上传测试…';
+  try{
+    const started=performance.now(),result=await networkTestRequest(async signal=>{const response=await api('/api/v1/admin/network-test?size_mib=16',{cache:'no-store',signal});const data=await response.arrayBuffer();return {response,data};}),response=result.response,data=result.data,seconds=(performance.now()-started)/1000;
+    if(!response.ok)throw Error('下载测速请求失败');
+    if(down)down.textContent=formatMbps(data.byteLength/Math.max(seconds,.001))+' · '+formatBytes(data.byteLength)+' / '+seconds.toFixed(2)+' 秒';
+  }catch(error){if(down)down.textContent='下载测速失败：'+error.message;}
+  try{
+    if(up)up.textContent='上传测试中（16 MiB）…';
+    const payload=new Uint8Array(16*1024*1024),started=performance.now(),result=await networkTestRequest(async signal=>{const response=await api('/api/v1/admin/network-test/upload',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:payload,signal});const data=await response.json();return {response,data};}),response=result.response,data=result.data,seconds=(performance.now()-started)/1000;
+    if(!response.ok)throw Error(data.detail||'上传测速请求失败');
+    if(up)up.textContent=formatMbps(data.bytes_per_second)+' · '+formatBytes(data.bytes)+' / '+seconds.toFixed(2)+' 秒';
+    log('浏览器网络测速完成',{download:down?.textContent,upload:up?.textContent});
+  }catch(error){if(up)up.textContent='上传测速失败：'+error.message;log('浏览器网络测速失败',error.message);}
+}
+// Preserve original names/extensions for downloads, then render each date in
+// a stable camera-first order so videos are not mixed with driving logs.
+downloadFile=async function(id,path){
+  try{
+    const url=await fetchBlob('/api/v1/files/'+id+'/download');
+    const name=(String(path||'openpilot-file').replace(/\\/g,'/').split('/').pop()||'openpilot-file');
+    const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),30000);
+    log('开始下载',name);
+  }catch(e){toast(e.message);log('下载失败',e.message);}
+};
+function fileSortTime(file){const value=Date.parse(file.recorded_at||file.uploaded_at||'');return Number.isFinite(value)?value:0;}
+function chronological(files){return [...files].sort((a,b)=>fileSortTime(a)-fileSortTime(b)||String(a.path||'').localeCompare(String(b.path||'')));}
+function videoSection(file){
+  const name=String(file.path||'').replace(/\\/g,'/').split('/').pop().toLowerCase();
+  if(name.startsWith('fcamera'))return {rank:1,label:'前视摄像头 · fcamera'};
+  if(name.startsWith('qcamera'))return {rank:2,label:'主摄像头 · qcamera'};
+  if(name.startsWith('dcamera'))return {rank:3,label:'驾驶员摄像头 · dcamera'};
+  if(name.startsWith('ecamera'))return {rank:4,label:'广角摄像头 · ecamera'};
+  if(name.startsWith('camera'))return {rank:5,label:'道路摄像头 · camera'};
+  return {rank:9,label:(file.camera||'其他视频')};
+}
+function groupedFileRow(file,index){
+  const view=file.kind==='log'&&isSystemErrorFile(file)?`<button onclick="viewErrorLog(${file.id},'${esc(file.path)}')">查看</button>`:file.kind==='video'?`<button onclick="play(${file.id},'${esc(file.path)}')">播放</button>`:file.kind==='trajectory'?`<button onclick="openReplay(${file.id})">轨迹</button>`:'';
+  return `<tr><td>${index}</td><td class="file-name" title="${esc(file.path)}">${esc(file.path)}</td><td>${esc(file.kind_name||file.kind||'')}</td><td>${esc(file.camera||'')}</td><td>${formatBytes(file.size_bytes)}</td><td${dateAttr(file.recorded_at)}>${formatRecordedTime(file)}</td><td${dateAttr(file.uploaded_at)}>${formatDate(file.uploaded_at)}</td><td class="actions">${view}<button onclick="downloadFile(${file.id},'${esc(file.path)}')">下载</button><button class="danger" onclick="removeFile(${file.id})">删除</button></td></tr>`;
+}
+renderFiles=function(){
+  const q=($('file-search')?.value||'').toLowerCase();
+  const rows=files.filter(fileMatchesCategory).filter(f=>(f.path||'').toLowerCase().includes(q));
+  $('file-empty').classList.toggle('hidden',rows.length!==0);
+  const dateGroups={};rows.forEach(file=>(dateGroups[fileDateKey(file)]??=[]).push(file));
+  const html=[];
+  for(const date of Object.keys(dateGroups).sort((a,b)=>b.localeCompare(a))){
+    const dateFiles=dateGroups[date],collapsed=!!collapsedFileDates[date];
+    html.push(`<tr class="date-group-row"><td colspan="8"><button class="date-group-button" onclick="toggleFileDate('${esc(date)}')">${collapsed?'▶':'▼'} ${esc(date)} <span>${dateFiles.length} 个文件</span></button></td></tr>`);
+    if(collapsed)continue;
+    if(fileCategory==='video-log'){
+      const videos=dateFiles.filter(f=>f.kind==='video');
+      const sections={};videos.forEach(file=>{const section=videoSection(file);(sections[section.label]??={rank:section.rank,files:[]}).files.push(file);});
+      for(const [label,section] of Object.entries(sections).sort((a,b)=>a[1].rank-b[1].rank||a[0].localeCompare(b[0]))){
+        html.push(`<tr class="file-subgroup-row"><td colspan="8">${esc(label)} · ${section.files.length} 个视频</td></tr>`);
+        chronological(section.files).forEach((file,index)=>html.push(groupedFileRow(file,index+1)));
+      }
+      const logs=chronological(dateFiles.filter(f=>f.kind==='log'&&!isSystemErrorFile(f)));
+      if(logs.length){html.push(`<tr class="file-subgroup-row"><td colspan="8">驾驶日志 · ${logs.length} 个文件</td></tr>`);logs.forEach((file,index)=>html.push(groupedFileRow(file,index+1)));}
+    }else chronological(dateFiles).forEach((file,index)=>html.push(groupedFileRow(file,index+1)));
+  }
+  $('files').innerHTML=html.join('');
+};
+if(!$('file-group-style')){const style=document.createElement('style');style.id='file-group-style';style.textContent='.file-subgroup-row td{padding:10px 18px;background:#142442;color:#b9d2ff;font-weight:700;font-size:13px;border-top:1px solid var(--line)}';document.head.appendChild(style);}
+// Refresh the persisted device-upload metric whenever the debug page opens.
+const _showPageForNetworkDiagnostics=showPage;
+showPage=function(name,button){
+  _showPageForNetworkDiagnostics(name,button);
+  if(name==='debug')loadNetworkDiagnostics();
+};
+</script>
+</body>
+</html>

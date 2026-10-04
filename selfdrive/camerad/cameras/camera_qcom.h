@@ -8,20 +8,15 @@
 #include "cereal/visionipc/visionbuf.h"
 #include "selfdrive/camerad/cameras/camera_common.h"
 #include "selfdrive/camerad/imgproc/utils.h"
-#include "third_party/linux/include/msm_cam_sensor.h"
-#include "third_party/linux/include/msmb_camera.h"
-#include "third_party/linux/include/msmb_isp.h"
-#include "third_party/linux/include/msmb_ispif.h"
-#include "common/mat.h"
-#include "common/util.h"
-
+#include "selfdrive/camerad/include/msm_cam_sensor.h"
+#include "selfdrive/camerad/include/msmb_camera.h"
+#include "selfdrive/camerad/include/msmb_isp.h"
+#include "selfdrive/camerad/include/msmb_ispif.h"
+#include "selfdrive/common/mat.h"
+#include "selfdrive/common/util.h"
 
 #define FRAME_BUF_COUNT 4
 #define METADATA_BUF_COUNT 4
-
-#define DEVICE_OP3 0
-#define DEVICE_OP3T 1
-#define DEVICE_LP3 2
 
 #define NUM_FOCUS 8
 
@@ -29,10 +24,6 @@
 #define LP3_AF_DAC_UP 634
 #define LP3_AF_DAC_M 440
 #define LP3_AF_DAC_3SIG 52
-#define OP3T_AF_DAC_DOWN 224
-#define OP3T_AF_DAC_UP 456
-#define OP3T_AF_DAC_M 300
-#define OP3T_AF_DAC_3SIG 96
 
 #define FOCUS_RECOVER_PATIENCE 50 // 2.5 seconds of complete blur
 #define FOCUS_RECOVER_STEPS 240 // 6 seconds
@@ -51,7 +42,6 @@ typedef struct StreamState {
 typedef struct CameraState {
   int camera_num;
   int camera_id;
-  int device;
 
   int fps;
   CameraInfo ci;
@@ -84,7 +74,7 @@ typedef struct CameraState {
   camera_apply_exposure_func apply_exposure;
 
   // rear camera only,used for focusing
-  unique_fd actuator_fd, ois_fd, eeprom_fd;
+  unique_fd actuator_fd;
   std::atomic<float> focus_err;
   std::atomic<float> lens_true_pos;
   std::atomic<int> self_recover; // af recovery counter, neg is patience, pos is active
@@ -92,15 +82,10 @@ typedef struct CameraState {
   uint16_t cur_lens_pos;
   int16_t focus[NUM_FOCUS];
   uint8_t confidence[NUM_FOCUS];
-  uint16_t infinity_dac;
-  size_t eeprom_size;
-  uint8_t *eeprom;
 } CameraState;
 
 
 typedef struct MultiCameraState {
-  int device;
-
   unique_fd ispif_fd;
   unique_fd msmcfg_fd;
   unique_fd v4l_fd;

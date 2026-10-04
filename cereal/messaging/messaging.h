@@ -1,15 +1,10 @@
 #pragma once
-
 #include <cstddef>
 #include <map>
 #include <string>
 #include <vector>
-#include <utility>
-#include <time.h>
-
 #include <capnp/serialize.h>
-
-#include "cereal/gen/cpp/log.capnp.h"
+#include "../gen/cpp/log.capnp.h"
 
 #ifdef __APPLE__
 #define CLOCK_BOOTTIME CLOCK_MONOTONIC
@@ -23,7 +18,7 @@ class Context {
 public:
   virtual void * getRawContext() = 0;
   static Context * create();
-  virtual ~Context(){}
+  virtual ~Context(){};
 };
 
 class Message {
@@ -71,7 +66,7 @@ public:
 
 class SubMaster {
 public:
-  SubMaster(const std::vector<const char *> &service_list, const std::vector<const char *> &poll = {},
+  SubMaster(const std::vector<const char *> &service_list,
             const char *address = nullptr, const std::vector<const char *> &ignore_alive = {});
   void update(int timeout = 1000);
   void update_msgs(uint64_t current_time, const std::vector<std::pair<std::string, cereal::Event::Reader>> &messages);
@@ -114,18 +109,6 @@ public:
   kj::ArrayPtr<capnp::byte> toBytes() {
     heapArray_ = capnp::messageToFlatArray(*this);
     return heapArray_.asBytes();
-  }
-
-  size_t getSerializedSize() {
-    return capnp::computeSerializedSizeInWords(*this) * sizeof(capnp::word);
-  }
-
-  int serializeToBuffer(unsigned char *buffer, size_t buffer_size) {
-    size_t serialized_size = getSerializedSize();
-    if (serialized_size > buffer_size) { return -1; }
-    kj::ArrayOutputStream out(kj::ArrayPtr<capnp::byte>(buffer, buffer_size));
-    capnp::writeMessage(out, *this);
-    return serialized_size;
   }
 
 private:

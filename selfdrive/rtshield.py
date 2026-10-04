@@ -3,7 +3,7 @@ import os
 import time
 from typing import NoReturn
 
-from openpilot.common.realtime import set_core_affinity, set_realtime_priority
+from common.realtime import set_core_affinity, set_realtime_priority
 
 # RT shield - ensure CPU 3 always remains available for RT processes
 #   runs as SCHED_FIFO with minimum priority to ensure kthreads don't
@@ -11,7 +11,7 @@ from openpilot.common.realtime import set_core_affinity, set_realtime_priority
 #   openpilot processes
 
 def main() -> NoReturn:
-  set_core_affinity([int(os.getenv("CORE", "3")), ])
+  set_core_affinity(int(os.getenv("CORE", "3")))
   set_realtime_priority(1)
 
   while True:

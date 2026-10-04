@@ -1,0 +1,35 @@
+{
+  email {$ACME_EMAIL}
+}
+
+{$SERVER_DOMAIN} {
+  encode zstd gzip
+
+  # The admin console is the public landing page.
+  @homepage path /
+  redir @homepage /admin/ 302
+
+  # Uploads can contain route videos. The application also enforces the same
+  # 2 GiB per-file limit before committing an upload.
+  request_body {
+    max_size 2GB
+  }
+
+  header {
+    -Server
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  }
+
+  reverse_proxy api:8080 {
+    transport http {
+      dial_timeout 10s
+      response_header_timeout 60s
+      read_timeout 1h
+      write_timeout 1h
+    }
+  }
+}

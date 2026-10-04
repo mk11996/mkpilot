@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef SWAGLOG
-#include SWAGLOG
+#include "selfdrive/common/swaglog.h"
 #else
 
 #define CLOUDLOG_DEBUG 10

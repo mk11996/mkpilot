@@ -1,0 +1,8 @@
+.env
+.git
+storage/
+test-storage/
+test.db
+__pycache__/
+*.pyc
+

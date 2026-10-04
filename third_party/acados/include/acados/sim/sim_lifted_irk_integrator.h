@@ -1,5 +1,8 @@
 /*
- * Copyright (c) The acados authors.
+ * Copyright 2019 Gianluca Frison, Dimitris Kouzoupis, Robin Verschueren,
+ * Andrea Zanelli, Niels van Duijkeren, Jonathan Frey, Tommaso Sartor,
+ * Branimir Novoselnik, Rien Quirynen, Rezart Qelibari, Dang Doan,
+ * Jonas Koenemann, Yutao Chen, Tobias Schöls, Jonas Schlagenhauf, Moritz Diehl
  *
  * This file is part of acados.
  *
@@ -93,7 +96,6 @@ typedef struct
     struct blasfeo_dvec *u;         // controls (nu) -- for expansion step
 
     int update_sens;
-    // int init_K;
 
 	double time_sim;
 	double time_ad;

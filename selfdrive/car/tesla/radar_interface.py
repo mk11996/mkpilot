@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 from cereal import car
 from opendbc.can.parser import CANParser
-from openpilot.selfdrive.car.tesla.values import DBC, CANBUS
-from openpilot.selfdrive.car.interfaces import RadarInterfaceBase
+from selfdrive.car.tesla.values import DBC, CANBUS
+from selfdrive.car.interfaces import RadarInterfaceBase
 
 RADAR_MSGS_A = list(range(0x310, 0x36E, 3))
 RADAR_MSGS_B = list(range(0x311, 0x36F, 3))
@@ -10,7 +10,13 @@ NUM_POINTS = len(RADAR_MSGS_A)
 
 def get_radar_can_parser(CP):
   # Status messages
-  messages = [
+  signals = [
+    ('RADC_HWFail', 'TeslaRadarSguInfo'),
+    ('RADC_SGUFail', 'TeslaRadarSguInfo'),
+    ('RADC_SensorDirty', 'TeslaRadarSguInfo'),
+  ]
+
+  checks = [
     ('TeslaRadarSguInfo', 10),
   ]
 
@@ -19,12 +25,28 @@ def get_radar_can_parser(CP):
   for i in range(NUM_POINTS):
     msg_id_a = RADAR_MSGS_A[i]
     msg_id_b = RADAR_MSGS_B[i]
-    messages.extend([
+
+    # There is a bunch more info in the messages,
+    # but these are the only things actually used in openpilot
+    signals.extend([
+      ('LongDist', msg_id_a),
+      ('LongSpeed', msg_id_a),
+      ('LatDist', msg_id_a),
+      ('LongAccel', msg_id_a),
+      ('Meas', msg_id_a),
+      ('Tracked', msg_id_a),
+      ('Index', msg_id_a),
+
+      ('LatSpeed', msg_id_b),
+      ('Index2', msg_id_b),
+    ])
+
+    checks.extend([
       (msg_id_a, 8),
       (msg_id_b, 8),
     ])
 
-  return CANParser(DBC[CP.carFingerprint]['radar'], messages, CANBUS.radar)
+  return CANParser(DBC[CP.carFingerprint]['radar'], signals, checks, CANBUS.radar)
 
 class RadarInterface(RadarInterfaceBase):
   def __init__(self, CP):

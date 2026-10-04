@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
 from cereal import car
 from panda import Panda
-from openpilot.selfdrive.car.tesla.values import CANBUS, CAR
-from openpilot.selfdrive.car import get_safety_config
-from openpilot.selfdrive.car.interfaces import CarInterfaceBase
+from selfdrive.car.tesla.values import CANBUS, CAR
+from selfdrive.car import STD_CARGO_KG, gen_empty_fingerprint, scale_rot_inertia, scale_tire_stiffness, get_safety_config
+from selfdrive.car.interfaces import CarInterfaceBase
 
-from openpilot.common.params import Params
 
 class CarInterface(CarInterfaceBase):
   @staticmethod
-  def _get_params(ret, candidate, fingerprint, car_fw, experimental_long, docs):
+  def get_params(candidate, fingerprint=gen_empty_fingerprint(), car_fw=None):
+    ret = CarInterfaceBase.get_std_params(candidate, fingerprint)
     ret.carName = "tesla"
 
     # There is no safe way to do steer blending with user torque,
     # so the steering behaves like autopilot. This is not
     # how openpilot should be, hence dashcamOnly
     ret.dashcamOnly = True
-    ret.dashcamOnly = False if ret.dashcamOnly and Params().get_bool("dp_car_dashcam_mode_removal") else ret.dashcamOnly
 
     ret.steerControlType = car.CarParams.SteerControlType.angle
 
@@ -25,6 +24,7 @@ class CarInterface(CarInterfaceBase):
     ret.longitudinalTuning.kpV = [0]
     ret.longitudinalTuning.kiBP = [0]
     ret.longitudinalTuning.kiV = [0]
+    ret.stopAccel = 0.0
     ret.longitudinalActuatorDelayUpperBound = 0.5 # s
     ret.radarTimeStep = (1.0 / 8) # 8Hz
 
@@ -41,24 +41,36 @@ class CarInterface(CarInterfaceBase):
       ret.safetyConfigs = [get_safety_config(car.CarParams.SafetyModel.tesla, 0)]
 
     ret.steerLimitTimer = 1.0
-    ret.steerActuatorDelay = 0.25
+    ret.steerActuatorDelay = 0.1
+    ret.steerRateCost = 0.5
 
     if candidate in (CAR.AP2_MODELS, CAR.AP1_MODELS):
-      ret.mass = 2100.
+      ret.mass = 2100. + STD_CARGO_KG
       ret.wheelbase = 2.959
       ret.centerToFront = ret.wheelbase * 0.5
-      ret.steerRatio = 15.0
+      ret.steerRatio = 13.5
     else:
       raise ValueError(f"Unsupported car: {candidate}")
 
+    ret.rotationalInertia = scale_rot_inertia(ret.mass, ret.wheelbase)
+    ret.tireStiffnessFront, ret.tireStiffnessRear = scale_tire_stiffness(ret.mass, ret.wheelbase, ret.centerToFront)
+
     return ret
 
-  def _update(self, c):
+  def update(self, c, can_strings):
+    self.cp.update_strings(can_strings)
+    self.cp_cam.update_strings(can_strings)
+
     ret = self.CS.update(self.cp, self.cp_cam)
+    ret.canValid = self.cp.can_valid and self.cp_cam.can_valid
 
-    ret.events = self.create_common_events(ret).to_msg()
+    events = self.create_common_events(ret)
 
+    ret.events = events.to_msg()
+    self.CS.out = ret.as_reader()
+    return self.CS.out
+
+  def apply(self, c):
+    ret = self.CC.update(c, c.enabled, self.CS, self.frame, c.actuators, c.cruiseControl.cancel)
+    self.frame += 1
     return ret
-
-  def apply(self, c, now_nanos):
-    return self.CC.update(c, self.CS, now_nanos)

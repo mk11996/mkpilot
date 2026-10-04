@@ -2,10 +2,13 @@ import jwt
 import os
 import requests
 from datetime import datetime, timedelta
-from openpilot.common.basedir import PERSIST
-from openpilot.system.version import get_version
+from common.basedir import PERSIST
+from selfdrive.version import get_version
 
-API_HOST = os.getenv('API_HOST', 'https://api.commadotai.com')
+# Set OPENPILOT_SERVER_URL once on the device, for example:
+#   OPENPILOT_SERVER_URL=http://192.168.5.3:18080
+# API_HOST remains supported for compatibility with existing deployments.
+API_HOST = os.getenv('API_HOST', os.getenv('OPENPILOT_SERVER_URL', 'http://192.168.5.3:18080')).rstrip('/')
 
 class Api():
   def __init__(self, dongle_id):
@@ -22,13 +25,13 @@ class Api():
   def request(self, method, endpoint, timeout=None, access_token=None, **params):
     return api_get(endpoint, method=method, timeout=timeout, access_token=access_token, **params)
 
-  def get_token(self, expiry_hours=1):
+  def get_token(self):
     now = datetime.utcnow()
     payload = {
       'identity': self.dongle_id,
       'nbf': now,
       'iat': now,
-      'exp': now + timedelta(hours=expiry_hours)
+      'exp': now + timedelta(hours=1)
     }
     token = jwt.encode(payload, self.private_key, algorithm='RS256')
     if isinstance(token, bytes):

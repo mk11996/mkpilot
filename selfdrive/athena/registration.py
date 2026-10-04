@@ -3,16 +3,15 @@ import time
 import json
 import jwt
 from pathlib import Path
-from typing import Optional
 
 from datetime import datetime, timedelta
-from openpilot.common.api import api_get
-from openpilot.common.params import Params
-from openpilot.common.spinner import Spinner
-from openpilot.common.basedir import PERSIST
-from openpilot.selfdrive.controls.lib.alertmanager import set_offroad_alert
-from openpilot.system.hardware import HARDWARE, PC
-from openpilot.system.swaglog import cloudlog
+from common.api import api_get
+from common.params import Params
+from common.spinner import Spinner
+from common.basedir import PERSIST
+from selfdrive.controls.lib.alertmanager import set_offroad_alert
+from selfdrive.hardware import HARDWARE, PC
+from selfdrive.swaglog import cloudlog
 
 
 UNREGISTERED_DONGLE_ID = "UnregisteredDevice"
@@ -23,18 +22,17 @@ def is_registered_device() -> bool:
   return dongle not in (None, UNREGISTERED_DONGLE_ID)
 
 
-def register(show_spinner=False) -> Optional[str]:
+def register(show_spinner=False) -> str:
   params = Params()
   params.put("SubscriberInfo", HARDWARE.get_subscriber_info())
 
   IMEI = params.get("IMEI", encoding='utf8')
   HardwareSerial = params.get("HardwareSerial", encoding='utf8')
-  dongle_id: Optional[str] = params.get("DongleId", encoding='utf8')
-  needs_registration = None in (IMEI, HardwareSerial, dongle_id)
-
-  if not params.get_bool('dp_device_enable_comma_registration'):
-    return UNREGISTERED_DONGLE_ID if dongle_id is None else dongle_id
-
+  dongle_id = params.get("DongleId", encoding='utf8')
+  # Retry registration after a previous attempt failed. The old behavior
+  # treated the sentinel UnregisteredDevice as a valid persisted ID, so a
+  # transient server/network failure could permanently prevent retries.
+  needs_registration = None in (IMEI, HardwareSerial, dongle_id) or dongle_id == UNREGISTERED_DONGLE_ID
   pubkey = Path(PERSIST+"/comma/id_rsa.pub")
   if not pubkey.is_file():
     dongle_id = UNREGISTERED_DONGLE_ID
@@ -52,8 +50,7 @@ def register(show_spinner=False) -> Optional[str]:
     # Block until we get the imei
     serial = HARDWARE.get_serial()
     start_time = time.monotonic()
-    imei1: Optional[str] = None
-    imei2: Optional[str] = None
+    imei1, imei2 = None, None
     while imei1 is None and imei2 is None:
       try:
         imei1, imei2 = HARDWARE.get_imei(0), HARDWARE.get_imei(1)
@@ -96,7 +93,7 @@ def register(show_spinner=False) -> Optional[str]:
 
   if dongle_id:
     params.put("DongleId", dongle_id)
-    # set_offroad_alert("Offroad_UnofficialHardware", (dongle_id == UNREGISTERED_DONGLE_ID) and not PC)
+    set_offroad_alert("Offroad_UnofficialHardware", (dongle_id == UNREGISTERED_DONGLE_ID) and not PC)
   return dongle_id
 
 

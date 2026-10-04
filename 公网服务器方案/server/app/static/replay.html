@@ -1,0 +1,1530 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>驾驶轨迹回放 - 本地日志解析</title>
+
+    <!--
+        ==================== 配置说明 ====================
+        请在下方替换为您的高德地图Key
+        申请地址：https://console.amap.com/dev/key/app
+
+        注意：只需要修改下面这一个地方！
+        ====================
+    -->
+    <script type="text/javascript">
+        // 【重要】在这里填写您的高德地图Key
+        // 如果您没有Key，请访问：https://console.amap.com/dev/key/app
+        window.AMAP_KEY = 'bd9214a1dd0fed6fd83fe39231be008d';  // 替换为你的Key
+
+        // 如果有安全密钥（securityJsCode），在这里填写，没有就留空
+        window.AMAP_SECURITY_CODE = '0d4dd413a79b2d0f14e66f27847477c7';
+
+        // 配置安全验证
+        if (window.AMAP_SECURITY_CODE) {
+            window._AMapSecurityConfig = {
+                securityJsCode: window.AMAP_SECURITY_CODE
+            };
+        }
+    </script>
+
+    <!-- 动态加载高德地图API -->
+    <script type="text/javascript">
+        (function() {
+            const script = document.createElement('script');
+            script.src = `https://webapi.amap.com/maps?v=2.0&key=${window.AMAP_KEY}&callback=initMapCallback`;
+            script.onerror = function() {
+                console.error('高德地图API加载失败，请检查Key是否正确');
+            };
+            document.head.appendChild(script);
+        })();
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .sidebar {
+            width: 320px;
+            background: white;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            overflow-y: auto;
+            z-index: 10;
+        }
+        
+        .map-container {
+            flex: 1;
+            height: 100vh;
+            position: relative;
+            background: #f0f0f0;
+        }
+        
+        /* 地图加载提示 */
+        .map-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .map-loading.hidden {
+            display: none;
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3366FF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* 错误提示 */
+        .map-error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            color: #721c24;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            z-index: 100;
+            text-align: center;
+            max-width: 400px;
+            display: none;
+        }
+        
+        .map-error.show {
+            display: block;
+        }
+        
+        .map-error h3 {
+            color: #721c24;
+            margin-bottom: 15px;
+        }
+        
+        .map-error p {
+            margin: 10px 0;
+            color: #666;
+        }
+        
+        .map-error .error-detail {
+            background: #f8d7da;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            text-align: left;
+            margin: 15px 0;
+        }
+        
+        .map-error button {
+            background: #3366FF;
+            color: white;
+            border: none;
+            padding: 10px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        .map-error button:hover {
+            background: #2952cc;
+        }
+        
+        .file-upload {
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 2px dashed #3366FF;
+            border-radius: 10px;
+            text-align: center;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .file-upload:hover {
+            background: #e8ecff;
+            border-color: #2952cc;
+        }
+        
+        .file-upload input {
+            display: none;
+        }
+        
+        .file-upload label {
+            cursor: pointer;
+            color: #3366FF;
+            font-weight: bold;
+        }
+        
+        .file-info {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+            font-size: 14px;
+            word-break: break-all;
+        }
+        
+        .stats-panel {
+            background: #f8f9ff;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        
+        .stats-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .stat-item {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #3366FF;
+        }
+        
+        .control-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .control-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+        
+        .btn-primary {
+            background: #3366FF;
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            background: #2952cc;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: #5a6268;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover:not(:disabled) {
+            background: #218838;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .progress-container {
+            margin: 20px 0;
+        }
+        
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3366FF, #00ccff);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+        
+        .speed-control {
+            margin: 15px 0;
+        }
+        
+        .speed-control label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .speed-control input {
+            width: 100%;
+        }
+        
+        .live-data {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(26, 26, 26, 0.9);
+            border-radius: 10px;
+            padding: 15px;
+            color: white;
+            z-index: 1000;
+            min-width: 280px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+        }
+        
+        .live-data-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #333;
+        }
+        
+        .live-data-item:last-child {
+            border-bottom: none;
+        }
+        
+        .data-label {
+            color: #888;
+        }
+        
+        .data-value {
+            font-weight: bold;
+            color: #00ff00;
+            font-family: monospace;
+            font-size: 16px;
+        }
+        
+        .alert {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .coordinate-preview {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+            max-height: 100px;
+            overflow-y: auto;
+            background: #f5f5f5;
+            padding: 5px;
+            border-radius: 3px;
+        }
+
+        /* Key配置提示 */
+        .key-hint {
+            background: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-size: 13px;
+            border: 1px solid #ffeeba;
+            display: none;
+        }
+        
+        .key-hint.show {
+            display: block;
+        }
+
+        /* 居中按钮 */
+        .center-button {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            background: white;
+            border: 2px solid #3366FF;
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+        }
+
+        .center-button:hover {
+            background: #3366FF;
+            transform: scale(1.1);
+        }
+
+        .center-button:hover::after {
+            color: white;
+        }
+
+        .center-button::after {
+            content: '🎯';
+        }
+
+        .center-button.active {
+            background: #3366FF;
+            border-color: #3366FF;
+        }
+
+        .center-button.active::after {
+            content: '🔒';
+            color: white;
+        }
+    </style>
+    <style>
+        @media (max-width: 700px) {
+            body { overflow:auto; }
+            .container { display:flex; flex-direction:column; height:auto; min-height:100vh; }
+            .sidebar { width:100%; max-height:none; padding:14px; overflow:visible; box-shadow:0 2px 10px rgba(0,0,0,.12); }
+            .map-container { width:100%; height:58vh; min-height:390px; flex:none; }
+            .file-upload { min-height:92px; padding:12px; }
+            .file-upload label { padding:12px; }
+            .file-upload label > div:first-child { font-size:28px !important; margin-bottom:4px !important; }
+            .stats-grid { grid-template-columns:repeat(2,1fr); }
+            .control-buttons { gap:6px; }
+            .control-buttons button { flex:1; padding:9px 5px; }
+            .live-data { left:10px; right:10px; top:10px; width:auto; max-width:none; }
+            .center-button { right:14px; bottom:14px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 左侧控制面板 -->
+        <div class="sidebar">
+            <h2 style="color: #3366FF; margin-bottom: 20px;">🚗 轨迹回放系统</h2>
+            
+            <!-- Key配置提示 -->
+            <div class="key-hint" id="keyHint">
+                <strong>🔑 需要配置高德地图Key</strong>
+                <p style="margin-top: 5px; font-size: 12px;">请在代码开头替换您的Key</p>
+            </div>
+            
+            <!-- 文件上传区域 -->
+            <div class="file-upload" id="fileUploadArea">
+                <input type="file" id="fileInput" accept=".csv,.txt,.log,.json">
+                <label for="fileInput">
+                    <div style="font-size: 40px; margin-bottom: 10px;">📁</div>
+                    <div style="font-weight: bold;">点击选择日志文件</div>
+                    <div style="font-size: 12px; color: #999; margin-top: 5px;">支持 .csv .txt .log .json</div>
+                </label>
+            </div>
+            
+            <!-- 文件信息 -->
+            <div class="file-info" id="fileInfo" style="display: none;">
+                <div id="fileName"></div>
+                <div id="fileSize"></div>
+            </div>
+            
+            <!-- 数据统计 -->
+            <div class="stats-panel" id="statsPanel" style="display: none;">
+                <div class="stats-title">📊 数据统计</div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">数据点数</div>
+                        <div class="stat-value" id="pointCount">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">里程(km)</div>
+                        <div class="stat-value" id="distance">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">平均速度</div>
+                        <div class="stat-value" id="avgSpeed">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">最高速度</div>
+                        <div class="stat-value" id="maxSpeed">0</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 控制按钮 -->
+            <div class="control-panel">
+                <div class="control-buttons">
+                    <button class="btn-primary" id="playBtn" disabled>▶ 播放</button>
+                    <button class="btn-secondary" id="pauseBtn" disabled>⏸️ 暂停</button>
+                    <button class="btn-success" id="resetBtn" disabled>↺ 重置</button>
+                </div>
+                
+                <!-- 进度条 -->
+                <div class="progress-container">
+                    <div class="progress-label">
+                        <span>回放进度</span>
+                        <span id="progressText">0%</span>
+                    </div>
+                    <div class="progress-bar" id="progressBar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                </div>
+                
+                <!-- 速度控制 -->
+                <div class="speed-control">
+                    <label>播放速度: <span id="speedValue">1x</span></label>
+                    <input type="range" id="speedControl" min="0.5" max="30" step="0.5" value="1" disabled>
+                    <div style="display: flex; gap: 5px; margin-top: 10px;">
+                        <button onclick="setSpeed(1)" style="flex: 1; padding: 5px; font-size: 12px;">1x</button>
+                        <button onclick="setSpeed(5)" style="flex: 1; padding: 5px; font-size: 12px;">5x</button>
+                        <button onclick="setSpeed(10)" style="flex: 1; padding: 5px; font-size: 12px;">10x</button>
+                        <button onclick="setSpeed(30)" style="flex: 1; padding: 5px; font-size: 12px;">30x</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 提示信息 -->
+            <div class="alert" id="alert"></div>
+        </div>
+
+        <!-- 地图容器 -->
+        <div class="map-container" id="mapContainer">
+            <div class="map-loading" id="mapLoading">
+                <div class="spinner"></div>
+                <span>正在加载地图...</span>
+            </div>
+            <div class="map-error" id="mapError">
+                <h3>❌ 地图加载失败</h3>
+                <p>请检查以下几点：</p>
+                <div class="error-detail" id="errorDetail"></div>
+                <button onclick="location.reload()">重新加载</button>
+            </div>
+
+            <!-- 实时数据面板（覆盖在地图上） -->
+            <div class="live-data" id="liveData" style="display: none;">
+                <div style="margin-bottom: 10px; color: #fff; font-weight: bold;">📡 实时数据</div>
+                <div class="live-data-item">
+                    <span class="data-label">GPS时间:</span>
+                    <span class="data-value" id="currentTime">--</span>
+                </div>
+                <div class="live-data-item">
+                    <span class="data-label">当前索引:</span>
+                    <span class="data-value" id="currentIndex">0</span>
+                </div>
+                <div class="live-data-item">
+                    <span class="data-label">车速:</span>
+                    <span class="data-value" id="currentSpeed">0 km/h</span>
+                </div>
+                <div class="live-data-item">
+                    <span class="data-label">经度:</span>
+                    <span class="data-value" id="currentLng">0</span>
+                </div>
+                <div class="live-data-item">
+                    <span class="data-label">纬度:</span>
+                    <span class="data-value" id="currentLat">0</span>
+                </div>
+                <div class="live-data-item">
+                    <span class="data-label">海拔:</span>
+                    <span class="data-value" id="currentAlt">0 m</span>
+                </div>
+                <div class="live-data-item">
+                    <span class="data-label">转向角:</span>
+                    <span class="data-value" id="currentAngle">0°</span>
+                </div>
+                <div class="live-data-item">
+                    <span class="data-label">油门:</span>
+                    <span class="data-value" id="currentThrottle">0%</span>
+                </div>
+                <div class="live-data-item">
+                    <span class="data-label">刹车:</span>
+                    <span class="data-value" id="currentBrake">0%</span>
+                </div>
+            </div>
+
+            <!-- 居中按钮 -->
+            <div class="center-button active" id="centerButton" title="点击切换跟随模式" style="display: none;"></div>
+
+            <div id="map" style="width: 100%; height: 100%;"></div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 全局变量 ====================
+        let map = null;
+        let carMarker = null;
+        let polyline = null;
+        let trackData = [];
+        let currentIndex = 0;
+        let timer = null;
+        let isPlaying = false;
+        let playSpeed = 1;
+        let mapLoaded = false;
+        let autoFollow = true;  // 自动跟随标志
+        let centerButton = null;  // 居中按钮
+
+        // ==================== 地图初始化回调 ====================
+        window.initMapCallback = function() {
+            console.log('高德地图API加载成功');
+            document.getElementById('mapLoading').classList.add('hidden');
+            mapLoaded = true;
+            
+            // 尝试初始化地图
+            try {
+                initMap([116.397428, 39.90923]); // 默认北京中心
+            } catch (e) {
+                showMapError('地图初始化失败：' + e.message);
+            }
+        };
+
+        // ==================== 显示地图错误 ====================
+        function showMapError(message) {
+            document.getElementById('mapLoading').classList.add('hidden');
+            document.getElementById('mapError').classList.add('show');
+            document.getElementById('errorDetail').textContent = message || '请检查网络连接或Key配置';
+        }
+
+        // ==================== 初始化地图 ====================
+        function initMap(center) {
+            // 检查地图是否已加载
+            if (!window.AMap) {
+                showMapError('高德地图API未加载成功');
+                return;
+            }
+
+            // 检查Key是否配置（只检查是否为空，不检查具体值）
+            if (!window.AMAP_KEY || window.AMAP_KEY.trim() === '') {
+                document.getElementById('keyHint').classList.add('show');
+                showMapError('请先在高德开放平台申请Key并替换代码开头的配置（window.AMAP_KEY）');
+                return;
+            }
+
+            try {
+                // 如果地图已存在，只更新中心点
+                if (map) {
+                    map.setCenter(center);
+                    return;
+                }
+
+                // 创建地图实例
+                map = new AMap.Map('map', {
+                    zoom: 18,
+                    center: center,
+                    viewMode: '3D',
+                    pitch: 50,
+                    mapStyle: 'amap://styles/normal',
+                    showIndoorMap: false, // 禁用室内图，提高加载速度
+                    expandZoomRange: true,
+                    zooms: [3, 20]
+                });
+
+                // 添加地图加载完成事件
+                map.on('complete', function() {
+                    console.log('地图加载完成');
+                    document.getElementById('mapLoading').classList.add('hidden');
+                });
+
+                // 添加地图错误事件
+                map.on('error', function(e) {
+                    console.error('地图错误：', e);
+                    showMapError('地图渲染错误：' + (e.message || '未知错误'));
+                });
+
+                // 添加控件（使用API 2.0的插件加载方式）
+                AMap.plugin(['AMap.Scale', 'AMap.ToolBar'], function() {
+                    // 添加比例尺
+                    var scale = new AMap.Scale();
+                    map.addControl(scale);
+
+                    // 添加工具条
+                    var toolbar = new AMap.ToolBar({
+                        position: 'RT'
+                    });
+                    map.addControl(toolbar);
+                });
+
+                // 添加地图拖动事件监听
+                map.on('dragstart', function() {
+                    // 用户开始拖动地图，禁用自动跟随
+                    autoFollow = false;
+                    if (centerButton) {
+                        centerButton.classList.remove('active');
+                    }
+                });
+
+            } catch (e) {
+                console.error('地图初始化异常：', e);
+                showMapError('地图初始化异常：' + e.message);
+            }
+        }
+
+        // ==================== 坐标转换工具 ====================
+        class CoordTransform {
+            // WGS-84 转 GCJ-02 (GPS坐标转火星坐标)
+            static wgs84ToGcj02(lng, lat) {
+                const a = 6378245.0;  // 长半轴
+                const ee = 0.00669342162296594323;  // 偏心率平方
+
+                if (this.outOfChina(lng, lat)) {
+                    return [lng, lat];
+                }
+
+                let dLat = this.transformLat(lng - 105.0, lat - 35.0);
+                let dLng = this.transformLng(lng - 105.0, lat - 35.0);
+                const radLat = lat / 180.0 * Math.PI;
+                let magic = Math.sin(radLat);
+                magic = 1 - ee * magic * magic;
+                const sqrtMagic = Math.sqrt(magic);
+                dLat = (dLat * 180.0) / ((a * (1 - ee)) / (magic * sqrtMagic) * Math.PI);
+                dLng = (dLng * 180.0) / (a / sqrtMagic * Math.cos(radLat) * Math.PI);
+                const mgLat = lat + dLat;
+                const mgLng = lng + dLng;
+                return [mgLng, mgLat];
+            }
+
+            static transformLat(lng, lat) {
+                let ret = -100.0 + 2.0 * lng + 3.0 * lat + 0.2 * lat * lat +
+                         0.1 * lng * lat + 0.2 * Math.sqrt(Math.abs(lng));
+                ret += (20.0 * Math.sin(6.0 * lng * Math.PI) + 20.0 *
+                       Math.sin(2.0 * lng * Math.PI)) * 2.0 / 3.0;
+                ret += (20.0 * Math.sin(lat * Math.PI) + 40.0 *
+                       Math.sin(lat / 3.0 * Math.PI)) * 2.0 / 3.0;
+                ret += (160.0 * Math.sin(lat / 12.0 * Math.PI) + 320 *
+                       Math.sin(lat * Math.PI / 30.0)) * 2.0 / 3.0;
+                return ret;
+            }
+
+            static transformLng(lng, lat) {
+                let ret = 300.0 + lng + 2.0 * lat + 0.1 * lng * lng +
+                         0.1 * lng * lat + 0.1 * Math.sqrt(Math.abs(lng));
+                ret += (20.0 * Math.sin(6.0 * lng * Math.PI) + 20.0 *
+                       Math.sin(2.0 * lng * Math.PI)) * 2.0 / 3.0;
+                ret += (20.0 * Math.sin(lng * Math.PI) + 40.0 *
+                       Math.sin(lng / 3.0 * Math.PI)) * 2.0 / 3.0;
+                ret += (150.0 * Math.sin(lng / 12.0 * Math.PI) + 300.0 *
+                       Math.sin(lng / 30.0 * Math.PI)) * 2.0 / 3.0;
+                return ret;
+            }
+
+            static outOfChina(lng, lat) {
+                return (lng < 72.004 || lng > 137.8347) ||
+                       (lat < 0.8293 || lat > 55.8271);
+            }
+        }
+
+        // ==================== 日志解析器 ====================
+        class LogParser {
+            // 解析CSV格式
+            static parseCSV(content) {
+                const lines = content.trim().split('\n');
+                if (lines.length < 2) return null;
+
+                // 智能检测分隔符
+                const firstLine = lines[0];
+                let delimiter = ',';
+
+                // 检测制表符
+                if (firstLine.includes('\t')) {
+                    delimiter = '\t';
+                    console.log('检测到分隔符: Tab制表符');
+                }
+                // 检测多个连续空格（可能是空格分隔）
+                else if (firstLine.match(/\s{2,}/)) {
+                    delimiter = /\s{2,}/;  // 使用正则表达式匹配多个空格
+                    console.log('检测到分隔符: 多个空格');
+                }
+                // 默认使用逗号
+                else {
+                    console.log('检测到分隔符: 逗号');
+                }
+
+                // 获取表头
+                const headers = firstLine.split(delimiter).map(h => h.trim().replace(/["']/g, ''));
+                console.log('CSV表头数量:', headers.length);
+                console.log('CSV表头:', headers);
+
+                // 查找关键字段的索引
+                const lngIndex = headers.findIndex(h =>
+                    h.includes('经度') || h.includes('lng') || h.includes('Lng') || h.includes('longitude')
+                );
+                const latIndex = headers.findIndex(h =>
+                    h.includes('纬度') || h.includes('lat') || h.includes('Lat') || h.includes('latitude')
+                );
+
+                console.log('经度索引:', lngIndex, lngIndex >= 0 ? `字段名: "${headers[lngIndex]}"` : '未找到');
+                console.log('纬度索引:', latIndex, latIndex >= 0 ? `字段名: "${headers[latIndex]}"` : '未找到');
+
+                if (lngIndex === -1 || latIndex === -1) {
+                    console.error('未找到经纬度字段！');
+                    console.error('请检查CSV文件的表头是否包含"经度"或"纬度"字段');
+                    throw new Error('未找到经纬度字段。请确保CSV文件包含GPS经度和GPS纬度列。');
+                }
+
+                const speedIndex = headers.findIndex(h =>
+                    h.includes('车速') || h.includes('speed') || h.includes('Speed')
+                );
+                const altIndex = headers.findIndex(h =>
+                    h.includes('海拔') || h.includes('alt') || h.includes('Alt')
+                );
+                const angleIndex = headers.findIndex(h =>
+                    h.includes('实际转向角') || h.includes('转向角') || h.includes('angle')
+                );
+                const throttleIndex = headers.findIndex(h =>
+                    h.includes('油门') || h.includes('throttle')
+                );
+                const brakeIndex = headers.findIndex(h =>
+                    h.includes('刹车') || h.includes('brake')
+                );
+                // 优先匹配GPS时间，避免匹配到其他包含"时间"的列（如"日期时间"、"消息时间戳"等）
+                const timeIndex = headers.findIndex(h =>
+                    h.includes('GPS时间') || h.includes('GPS') || h.toLowerCase().includes('gps')
+                );
+
+                const points = [];
+                let validCount = 0;
+                let invalidCount = 0;
+
+                for (let i = 1; i < lines.length; i++) {
+                    if (!lines[i].trim()) continue;
+
+                    // 使用检测到的分隔符分割
+                    const values = lines[i].split(delimiter).map(v => v.trim());
+
+                    if (values.length <= Math.max(lngIndex, latIndex)) {
+                        console.warn(`第${i}行字段数量不足: ${values.length}, 需要至少 ${Math.max(lngIndex, latIndex) + 1}`);
+                        continue;
+                    }
+
+                    // 提取经纬度
+                    const lng = parseFloat(values[lngIndex]);
+                    const lat = parseFloat(values[latIndex]);
+
+                    // 调试：打印前3个点
+                    if (i <= 3) {
+                        console.log(`第${i}行 - 经度: "${values[lngIndex]}" => ${lng}, 纬度: "${values[latIndex]}" => ${lat}`);
+                    }
+
+                    // 严格的坐标验证：检查是否在中国境内合理范围
+                    if (isNaN(lng) || isNaN(lat) ||
+                        lng < 73 || lng > 135 ||
+                        lat < 18 || lat > 54) {
+                        invalidCount++;
+                        if (invalidCount <= 3) {
+                            console.warn(`无效坐标 - 经度: ${lng}, 纬度: ${lat}`);
+                        }
+                        continue;
+                    }
+
+                    validCount++;
+
+                    points.push({
+                        lng: lng,
+                        lat: lat,
+                        speed: speedIndex !== -1 ? parseFloat(values[speedIndex]) || 0 : 0,
+                        altitude: altIndex !== -1 ? parseFloat(values[altIndex]) || 0 : 0,
+                        steeringAngle: angleIndex !== -1 ? parseFloat(values[angleIndex]) || 0 : 0,
+                        throttle: throttleIndex !== -1 ? parseFloat(values[throttleIndex]) || 0 : 0,
+                        brake: brakeIndex !== -1 ? parseFloat(values[brakeIndex]) || 0 : 0,
+                        timestamp: timeIndex !== -1 ? values[timeIndex] : ''
+                    });
+                }
+
+                console.log(`解析完成 - 有效点: ${validCount}, 无效点: ${invalidCount}`);
+
+                return points;
+            }
+            
+            // 解析TXT格式（空格/制表符分隔）
+            static parseTXT(content) {
+                const lines = content.trim().split('\n');
+                const points = [];
+                
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    
+                    // 尝试多种分隔符
+                    const parts = line.split(/[\s,|\t]+/).filter(p => p.trim());
+                    
+                    // 查找所有数字
+                    const numbers = [];
+                    for (const part of parts) {
+                        const num = parseFloat(part);
+                        if (!isNaN(num)) {
+                            numbers.push(num);
+                        }
+                    }
+                    
+                    // 需要至少2个数字（经纬度）
+                    if (numbers.length >= 2) {
+                        // 假设前两个数字是经纬度
+                        points.push({
+                            lng: numbers[0],
+                            lat: numbers[1],
+                            speed: numbers[2] || 0,
+                            altitude: numbers[3] || 0,
+                            steeringAngle: numbers[4] || 0,
+                            throttle: 0,
+                            brake: 0
+                        });
+                    }
+                }
+                
+                return points;
+            }
+            
+            // 解析JSON格式
+            static parseJSON(content) {
+                try {
+                    const data = JSON.parse(content);
+                    
+                    // 如果是数组
+                    if (Array.isArray(data)) {
+                        return data.map(item => ({
+                            lng: parseFloat(item.lng || item.Lng || item.经度 || item.longitude || item[0] || 0),
+                            lat: parseFloat(item.lat || item.Lat || item.纬度 || item.latitude || item[1] || 0),
+                            speed: parseFloat(item.speed || item.Speed || item.车速 || item[2] || 0),
+                            altitude: parseFloat(item.alt || item.Alt || item.海拔 || item.altitude || item[3] || 0),
+                            steeringAngle: parseFloat(item.angle || item.Angle || item.转向角 || item[4] || 0),
+                            throttle: parseFloat(item.throttle || item.Throttle || item.油门 || item[5] || 0),
+                            brake: parseFloat(item.brake || item.Brake || item.刹车 || item[6] || 0)
+                        })).filter(p => p.lng && p.lat && !isNaN(p.lng) && !isNaN(p.lat));
+                    }
+                    
+                    // 如果包含data字段
+                    if (data.data && Array.isArray(data.data)) {
+                        return data.data.map(item => ({
+                            lng: parseFloat(item[0] || item.lng),
+                            lat: parseFloat(item[1] || item.lat),
+                            speed: parseFloat(item[2] || 0),
+                            altitude: parseFloat(item[3] || 0),
+                            steeringAngle: parseFloat(item[4] || 0),
+                            throttle: parseFloat(item[5] || 0),
+                            brake: parseFloat(item[6] || 0)
+                        })).filter(p => p.lng && p.lat);
+                    }
+                    
+                    return null;
+                } catch (e) {
+                    console.error('JSON解析错误：', e);
+                    return null;
+                }
+            }
+
+            // 主解析函数
+            static parse(file, content) {
+                const fileName = file.name.toLowerCase();
+                let points = [];
+
+                // 智能检测文件格式：优先尝试CSV解析
+                // 检查内容是否像CSV（包含逗号分隔的数据）
+                const looksLikeCSV = content.includes(',') && (content.includes('经度') || content.includes('GPS'));
+
+                if (fileName.endsWith('.csv') || looksLikeCSV || !fileName.includes('.')) {
+                    // .csv文件、看起来像CSV的文件、或无扩展名的文件都尝试CSV解析
+                    try {
+                        points = this.parseCSV(content);
+                        if (points && points.length > 0) {
+                            console.log('使用CSV格式解析成功');
+                        }
+                    } catch (e) {
+                        console.log('CSV解析失败，尝试其他格式:', e.message);
+                    }
+                }
+
+                // 如果CSV解析失败或文件是JSON格式
+                if ((!points || points.length === 0) && fileName.endsWith('.json')) {
+                    points = this.parseJSON(content);
+                }
+
+                // 如果以上都失败，尝试TXT格式
+                if (!points || points.length === 0) {
+                    points = this.parseTXT(content);
+                }
+
+                if (!points || points.length === 0) {
+                    throw new Error('未找到有效的坐标数据');
+                }
+
+                // 去重（防止原地抖动）
+                const uniquePoints = [];
+                const seen = new Set();
+
+                for (const p of points) {
+                    const key = p.lng.toFixed(6) + ',' + p.lat.toFixed(6);
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        uniquePoints.push(p);
+                    }
+                }
+
+                // 坐标转换：WGS-84 (GPS) -> GCJ-02 (高德)
+                console.log('开始坐标转换 (WGS-84 -> GCJ-02)...');
+                const convertedPoints = uniquePoints.map(p => {
+                    const [gcjLng, gcjLat] = CoordTransform.wgs84ToGcj02(p.lng, p.lat);
+                    return {
+                        ...p,
+                        lng: gcjLng,
+                        lat: gcjLat
+                    };
+                });
+
+                console.log(`解析到 ${convertedPoints.length} 个有效点，已完成坐标转换`);
+                return convertedPoints;
+            }
+        }
+
+        // ==================== 距离计算工具 ====================
+        class GeoUtils {
+            // 计算两点距离（米）
+            static distance(lng1, lat1, lng2, lat2) {
+                const radLat1 = lat1 * Math.PI / 180;
+                const radLat2 = lat2 * Math.PI / 180;
+                const a = radLat1 - radLat2;
+                const b = lng1 * Math.PI / 180 - lng2 * Math.PI / 180;
+                
+                const s = 2 * Math.asin(Math.sqrt(
+                    Math.pow(Math.sin(a / 2), 2) +
+                    Math.cos(radLat1) * Math.cos(radLat2) * Math.pow(Math.sin(b / 2), 2)
+                ));
+                
+                return s * 6378137;
+            }
+            
+            // 计算总里程
+            static totalDistance(points) {
+                let total = 0;
+                for (let i = 1; i < points.length; i++) {
+                    total += this.distance(
+                        points[i-1].lng, points[i-1].lat,
+                        points[i].lng, points[i].lat
+                    );
+                }
+                return (total / 1000).toFixed(2); // 转换为公里
+            }
+        }
+
+        // ==================== 绘制轨迹 ====================
+        function drawTrack(points) {
+            if (!map) {
+                showAlert('地图未初始化，请先等待地图加载', 'error');
+                return;
+            }
+            
+            try {
+                // 清除旧的轨迹
+                if (polyline) polyline.setMap(null);
+                
+                const path = points.map(p => [p.lng, p.lat]);
+                
+                polyline = new AMap.Polyline({
+                    path: path,
+                    strokeColor: '#3366FF',
+                    strokeWeight: 4,
+                    strokeOpacity: 0.8,
+                    lineJoin: 'round'
+                });
+                polyline.setMap(map);
+                
+                // 清除旧的小车
+                if (carMarker) carMarker.setMap(null);
+
+                // 计算初始角度
+                let initialAngle = 0;
+                if (points.length > 1) {
+                    initialAngle = calculateAngle(
+                        [points[0].lng, points[0].lat],
+                        [points[1].lng, points[1].lat]
+                    );
+                }
+
+                carMarker = new AMap.Marker({
+                    position: [points[0].lng, points[0].lat],
+                    icon: 'https://webapi.amap.com/images/car.png',
+                    anchor: 'center',
+                    map: map,
+                    offset: new AMap.Pixel(0, 0),
+                    angle: initialAngle
+                });
+                
+                // 调整视野
+                map.setFitView([polyline]);
+                
+                // 添加起点和终点标记
+                new AMap.Marker({
+                    position: [points[0].lng, points[0].lat],
+                    icon: 'https://webapi.amap.com/images/marker_s.png',
+                    map: map
+                });
+                
+                new AMap.Marker({
+                    position: [points[points.length-1].lng, points[points.length-1].lat],
+                    icon: 'https://webapi.amap.com/images/marker_e.png',
+                    map: map
+                });
+                
+            } catch (e) {
+                console.error('绘制轨迹错误：', e);
+                showAlert('绘制轨迹失败：' + e.message, 'error');
+            }
+        }
+
+        // ==================== 更新统计信息 ====================
+        function updateStats(points) {
+            document.getElementById('statsPanel').style.display = 'block';
+            document.getElementById('pointCount').textContent = points.length;
+            document.getElementById('distance').textContent = GeoUtils.totalDistance(points);
+            
+            // 计算平均速度和最高速度
+            const speeds = points.map(p => p.speed).filter(s => s > 0);
+            if (speeds.length > 0) {
+                const avg = (speeds.reduce((a, b) => a + b, 0) / speeds.length).toFixed(1);
+                const max = Math.max(...speeds).toFixed(1);
+                document.getElementById('avgSpeed').textContent = avg;
+                document.getElementById('maxSpeed').textContent = max;
+            }
+            
+            // 启用控件
+            document.getElementById('playBtn').disabled = false;
+            document.getElementById('resetBtn').disabled = false;
+            document.getElementById('speedControl').disabled = false;
+            document.getElementById('liveData').style.display = 'block';
+
+            // 显示居中按钮
+            centerButton = document.getElementById('centerButton');
+            centerButton.style.display = 'flex';
+
+            // 绑定居中按钮事件
+            centerButton.onclick = function() {
+                autoFollow = !autoFollow;
+                if (autoFollow) {
+                    centerButton.classList.add('active');
+                    centerButton.title = '跟随模式已开启（点击关闭）';
+                    // 立即居中到当前位置
+                    if (map && trackData[currentIndex]) {
+                        map.setCenter([trackData[currentIndex].lng, trackData[currentIndex].lat]);
+                    }
+                } else {
+                    centerButton.classList.remove('active');
+                    centerButton.title = '跟随模式已关闭（点击开启）';
+                }
+            };
+        }
+
+        // ==================== 更新实时数据 ====================
+        function updateLiveData(index) {
+            if (!trackData[index]) return;
+
+            const data = trackData[index];
+            document.getElementById('currentTime').textContent = data.timestamp || '--';
+            document.getElementById('currentIndex').textContent = index;
+            document.getElementById('currentSpeed').textContent = data.speed + ' km/h';
+            document.getElementById('currentLng').textContent = data.lng.toFixed(6);
+            document.getElementById('currentLat').textContent = data.lat.toFixed(6);
+            document.getElementById('currentAlt').textContent = data.altitude.toFixed(1) + ' m';
+            document.getElementById('currentAngle').textContent = data.steeringAngle.toFixed(1) + '°';
+            document.getElementById('currentThrottle').textContent = data.throttle + '%';
+            document.getElementById('currentBrake').textContent = data.brake + '%';
+
+            // 更新进度条
+            const progress = (index / (trackData.length - 1)) * 100;
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('progressText').textContent = Math.round(progress) + '%';
+        }
+
+        // ==================== 移动到下一个点 ====================
+        function moveToNextPoint() {
+            if (currentIndex >= trackData.length - 1) {
+                stopPlayback();
+                return;
+            }
+
+            currentIndex++;
+            const point = trackData[currentIndex];
+
+            if (carMarker) {
+                // 直接设置位置（浏览器会自动进行一定的平滑处理）
+                carMarker.setPosition([point.lng, point.lat]);
+            }
+
+            updateLiveData(currentIndex);
+
+            // 地图跟随（只在autoFollow为true时才居中）
+            if (map && autoFollow) {
+                map.setCenter([point.lng, point.lat]);
+            }
+
+            // 计算方向
+            if (currentIndex > 0 && carMarker) {
+                const prev = trackData[currentIndex - 1];
+                const angle = calculateAngle([prev.lng, prev.lat], [point.lng, point.lat]);
+                carMarker.setAngle(angle);
+            }
+        }
+
+        // ==================== 计算角度（球面坐标） ====================
+        function calculateAngle(start, end) {
+            // 将经纬度转换为弧度
+            const lng1 = start[0] * Math.PI / 180;
+            const lat1 = start[1] * Math.PI / 180;
+            const lng2 = end[0] * Math.PI / 180;
+            const lat2 = end[1] * Math.PI / 180;
+
+            // 使用球面三角学计算方位角
+            const dLng = lng2 - lng1;
+            const y = Math.sin(dLng) * Math.cos(lat2);
+            const x = Math.cos(lat1) * Math.sin(lat2) -
+                      Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+
+            // 计算角度（弧度转度数）
+            let angle = Math.atan2(y, x) * 180 / Math.PI;
+
+            // AMap的car.png图标默认朝向是向右（东，90度）
+            // 而我们的计算是以北为0度，所以需要减去90度来修正
+            angle = angle - 90;
+
+            // 确保角度在0-360范围内
+            return (angle + 360) % 360;
+        }
+
+        // ==================== 开始播放 ====================
+        function startPlayback() {
+            if (isPlaying || trackData.length === 0) return;
+
+            if (currentIndex >= trackData.length - 1) {
+                currentIndex = 0;
+                if (carMarker) {
+                    carMarker.setPosition([trackData[0].lng, trackData[0].lat]);
+                    // 设置初始角度
+                    if (trackData.length > 1) {
+                        const angle = calculateAngle(
+                            [trackData[0].lng, trackData[0].lat],
+                            [trackData[1].lng, trackData[1].lat]
+                        );
+                        carMarker.setAngle(angle);
+                    }
+                }
+                updateLiveData(0);
+            }
+
+            // 调整播放速度：80ms基准，接近原始10Hz记录速度
+            // 这样1x速度会比较接近真实驾驶速度
+            const interval = 80 / playSpeed;
+            timer = setInterval(moveToNextPoint, interval);
+            isPlaying = true;
+
+            document.getElementById('playBtn').disabled = true;
+            document.getElementById('pauseBtn').disabled = false;
+        }
+
+        // ==================== 暂停播放 ====================
+        function pausePlayback() {
+            if (timer) {
+                clearInterval(timer);
+                timer = null;
+            }
+            isPlaying = false;
+            
+            document.getElementById('playBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+        }
+
+        // ==================== 重置 ====================
+        function resetPlayback() {
+            pausePlayback();
+            currentIndex = 0;
+            if (carMarker && trackData.length > 0) {
+                carMarker.setPosition([trackData[0].lng, trackData[0].lat]);
+                // 设置初始角度
+                if (trackData.length > 1) {
+                    const angle = calculateAngle(
+                        [trackData[0].lng, trackData[0].lat],
+                        [trackData[1].lng, trackData[1].lat]
+                    );
+                    carMarker.setAngle(angle);
+                }
+            }
+            if (map && trackData.length > 0) {
+                map.setCenter([trackData[0].lng, trackData[0].lat]);
+            }
+            updateLiveData(0);
+        }
+
+        // ==================== 停止播放 ====================
+        function stopPlayback() {
+            pausePlayback();
+            document.getElementById('playBtn').disabled = false;
+        }
+
+        // ==================== 显示提示 ====================
+        function showAlert(message, type = 'success') {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = `alert alert-${type}`;
+            alert.style.display = 'block';
+            
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 3000);
+        }
+
+        // ==================== 检查地图状态 ====================
+        function checkMapReady() {
+            return new Promise((resolve, reject) => {
+                if (map && mapLoaded) {
+                    resolve();
+                } else {
+                    // 等待地图加载
+                    const checkInterval = setInterval(() => {
+                        if (map && mapLoaded) {
+                            clearInterval(checkInterval);
+                            resolve();
+                        }
+                    }, 100);
+                    
+                    // 超时处理
+                    setTimeout(() => {
+                        clearInterval(checkInterval);
+                        reject(new Error('地图加载超时'));
+                    }, 10000);
+                }
+            });
+        }
+
+        // ==================== 事件绑定 ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            // 检查Key配置（只检查是否为空）
+            if (!window.AMAP_KEY || window.AMAP_KEY.trim() === '') {
+                document.getElementById('keyHint').classList.add('show');
+            }
+
+            // 文件上传（移除重复的点击事件，label的for属性已经处理了）
+            const fileInput = document.getElementById('fileInput');
+            const fileUploadArea = document.getElementById('fileUploadArea');
+
+            // 不需要额外的点击事件，label的for="fileInput"已经处理了点击
+
+            fileInput.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                // 显示文件信息
+                document.getElementById('fileInfo').style.display = 'block';
+                document.getElementById('fileName').textContent = `📄 ${file.name}`;
+                document.getElementById('fileSize').textContent = `📦 ${(file.size / 1024).toFixed(2)} KB`;
+
+                try {
+                    // 读取文件 - 尝试多种编码
+                    let content;
+                    try {
+                        // 首先尝试UTF-8编码
+                        content = await file.text();
+                        // 检查是否有乱码（简单检测）
+                        if (content.includes('�') || /[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(content.substring(0, 500))) {
+                            console.log('检测到UTF-8编码可能有问题，尝试GBK编码...');
+                            throw new Error('UTF-8 encoding failed');
+                        }
+                        console.log('使用UTF-8编码读取成功');
+                    } catch (e) {
+                        // 如果UTF-8失败，尝试GBK编码
+                        console.log('尝试使用GBK编码读取文件...');
+                        const arrayBuffer = await file.arrayBuffer();
+                        const decoder = new TextDecoder('gbk');
+                        content = decoder.decode(arrayBuffer);
+                        console.log('使用GBK编码读取成功');
+                    }
+
+                    // 解析日志
+                    trackData = LogParser.parse(file, content);
+
+                    if (trackData.length === 0) {
+                        throw new Error('未找到有效数据');
+                    }
+
+                    // 检查地图是否就绪
+                    await checkMapReady();
+
+                    // 绘制轨迹
+                    drawTrack(trackData);
+
+                    // 更新统计
+                    updateStats(trackData);
+                    
+                    // 重置状态
+                    currentIndex = 0;
+                    updateLiveData(0);
+                    
+                    showAlert(`成功加载 ${trackData.length} 个数据点`);
+                    
+                } catch (error) {
+                    showAlert(error.message, 'error');
+                    console.error(error);
+                }
+            });
+            
+            // 控制按钮
+            document.getElementById('playBtn').addEventListener('click', startPlayback);
+            document.getElementById('pauseBtn').addEventListener('click', pausePlayback);
+            document.getElementById('resetBtn').addEventListener('click', resetPlayback);
+            
+            // 速度控制
+            document.getElementById('speedControl').addEventListener('input', (e) => {
+                playSpeed = parseFloat(e.target.value);
+                document.getElementById('speedValue').textContent = playSpeed + 'x';
+
+                // 如果正在播放，调整速度
+                if (isPlaying) {
+                    pausePlayback();
+                    startPlayback();
+                }
+            });
+
+            // 快速设置速度的函数
+            window.setSpeed = function(speed) {
+                playSpeed = speed;
+                document.getElementById('speedControl').value = speed;
+                document.getElementById('speedValue').textContent = speed + 'x';
+
+                // 如果正在播放，调整速度
+                if (isPlaying) {
+                    pausePlayback();
+                    startPlayback();
+                }
+            };
+
+            // 进度条点击跳转
+            document.getElementById('progressBar').addEventListener('click', (e) => {
+                if (trackData.length === 0 || !map) return;
+
+                // 使用 currentTarget 而不是 target，确保获取的是整个进度条的位置
+                // 避免点击填充部分时计算错误
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const percentage = Math.max(0, Math.min(1, x / rect.width));
+
+                const newIndex = Math.floor(percentage * (trackData.length - 1));
+                currentIndex = newIndex;
+
+                if (carMarker) {
+                    carMarker.setPosition([trackData[currentIndex].lng, trackData[currentIndex].lat]);
+
+                    // 更新车辆朝向
+                    if (currentIndex > 0) {
+                        const prev = trackData[currentIndex - 1];
+                        const curr = trackData[currentIndex];
+                        const angle = calculateAngle([prev.lng, prev.lat], [curr.lng, curr.lat]);
+                        carMarker.setAngle(angle);
+                    }
+                }
+                if (map && autoFollow) {
+                    map.setCenter([trackData[currentIndex].lng, trackData[currentIndex].lat]);
+                }
+                updateLiveData(currentIndex);
+            });
+            
+            // 阻止拖拽文件时的默认行为
+            document.addEventListener('dragover', (e) => e.preventDefault());
+            document.addEventListener('drop', (e) => e.preventDefault());
+        });
+    </script>
+    <script>
+        (function () {
+            const fileId = new URLSearchParams(location.search).get('file_id');
+            if (!fileId) return;
+            const token = localStorage.getItem('openpilot_token') || '';
+            const input = document.getElementById('fileInput');
+            if (!input) return;
+            window.addEventListener('load', async () => {
+                try {
+                    const response = await fetch('/api/v1/files/' + encodeURIComponent(fileId) + '/download', { headers: { Authorization: 'Bearer ' + token } });
+                    if (!response.ok) throw new Error('服务器文件读取失败: HTTP ' + response.status);
+                    const blob = await response.blob();
+                    const transfer = new DataTransfer();
+                    transfer.items.add(new File([blob], 'server-file-' + fileId + '.csv', { type: 'text/csv' }));
+                    input.files = transfer.files;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                } catch (error) {
+                    const alertBox = document.getElementById('alert');
+                    if (alertBox) { alertBox.textContent = error.message; alertBox.classList.add('show', 'error'); }
+                    console.error(error);
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

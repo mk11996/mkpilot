@@ -1,58 +1,66 @@
 # distutils: language = c++
-# cython: language_level=3
+#cython: language_level=3
 
-from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t
-from libcpp cimport bool
-from libcpp.pair cimport pair
-from libcpp.string cimport string
+from libc.stdint cimport uint32_t, uint64_t, uint16_t
 from libcpp.vector cimport vector
+from libcpp.map cimport map
+from libcpp.string cimport string
+from libcpp.unordered_set cimport unordered_set
+from libcpp cimport bool
 
-
-ctypedef unsigned int (*calc_checksum_type)(uint32_t, const Signal&, const vector[uint8_t] &)
 
 cdef extern from "common_dbc.h":
   ctypedef enum SignalType:
     DEFAULT,
-    COUNTER,
     HONDA_CHECKSUM,
+    HONDA_COUNTER,
     TOYOTA_CHECKSUM,
     PEDAL_CHECKSUM,
-    VOLKSWAGEN_MQB_CHECKSUM,
-    XOR_CHECKSUM,
+    PEDAL_COUNTER,
+    VOLKSWAGEN_CHECKSUM,
+    VOLKSWAGEN_COUNTER,
     SUBARU_CHECKSUM,
     CHRYSLER_CHECKSUM
-    HKG_CAN_FD_CHECKSUM,
 
   cdef struct Signal:
-    string name
-    int start_bit, msb, lsb, size
+    const char* name
+    int b1, b2, bo
     bool is_signed
     double factor, offset
-    bool is_little_endian
     SignalType type
-    calc_checksum_type calc_checksum
 
   cdef struct Msg:
-    string name
+    const char* name
     uint32_t address
     unsigned int size
-    vector[Signal] sigs
+    size_t num_sigs
+    const Signal *sigs
 
   cdef struct Val:
-    string name
+    const char* name
     uint32_t address
-    string def_val
-    vector[Signal] sigs
+    const char* def_val
+    const Signal *sigs
 
   cdef struct DBC:
-    string name
-    vector[Msg] msgs
-    vector[Val] vals
+    const char* name
+    size_t num_msgs
+    const Msg *msgs
+    const Val *vals
+    size_t num_vals
+
+  cdef struct SignalParseOptions:
+    uint32_t address
+    const char* name
+
+
+  cdef struct MessageParseOptions:
+    uint32_t address
+    int check_frequency
 
   cdef struct SignalValue:
     uint32_t address
-    uint64_t ts_nanos
-    string name
+    const char* name
     double value
     vector[double] all_values
 
@@ -62,14 +70,14 @@ cdef extern from "common_dbc.h":
 
 
 cdef extern from "common.h":
-  cdef const DBC* dbc_lookup(const string) except +
+  cdef const DBC* dbc_lookup(const string);
 
   cdef cppclass CANParser:
     bool can_valid
-    bool bus_timeout
-    CANParser(int, string, vector[pair[uint32_t, int]]) except +
-    void update_strings(vector[string]&, vector[SignalValue]&, bool) except +
+    CANParser(int, string, vector[MessageParseOptions], vector[SignalParseOptions])
+    void update_string(string, bool)
+    vector[SignalValue] query_latest()
 
   cdef cppclass CANPacker:
    CANPacker(string)
-   vector[uint8_t] pack(uint32_t, vector[SignalPackValue]&)
+   uint64_t pack(uint32_t, vector[SignalPackValue], int counter)

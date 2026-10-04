@@ -8,18 +8,18 @@ from typing import List
 
 import cereal.messaging as messaging
 from cereal.visionipc.visionipc_pyx import VisionIpcClient, VisionStreamType  # pylint: disable=no-name-in-module, import-error
-from openpilot.common.params import Params
-from openpilot.common.realtime import DT_MDL
-from openpilot.system.hardware import TICI, PC
-from openpilot.selfdrive.controls.lib.alertmanager import set_offroad_alert
-from openpilot.selfdrive.manager.process_config import managed_processes
+from common.params import Params
+from common.realtime import DT_MDL
+from selfdrive.hardware import TICI, PC
+from selfdrive.controls.lib.alertmanager import set_offroad_alert
+from selfdrive.manager.process_config import managed_processes
 
-LM_THRESH = 120  # defined in system/camerad/imgproc/utils.h
+LM_THRESH = 120  # defined in selfdrive/camerad/imgproc/utils.h
 
 VISION_STREAMS = {
-  "roadCameraState": VisionStreamType.VISION_STREAM_RGB_ROAD,
-  "driverCameraState": VisionStreamType.VISION_STREAM_RGB_DRIVER,
-  "wideRoadCameraState": VisionStreamType.VISION_STREAM_RGB_WIDE_ROAD,
+  "roadCameraState": VisionStreamType.VISION_STREAM_RGB_BACK,
+  "driverCameraState": VisionStreamType.VISION_STREAM_RGB_FRONT,
+  "wideRoadCameraState": VisionStreamType.VISION_STREAM_RGB_WIDE,
 }
 
 
@@ -28,11 +28,8 @@ def jpeg_write(fn, dat):
   img.save(fn, "JPEG")
 
 
-def extract_image(buf):
-  w = buf.width
-  h = buf.height
-  stride = buf.stride
-  img = np.hstack([buf.data[i * stride:i * stride + 3 * w] for i in range(h)])
+def extract_image(buf, w, h, stride):
+  img = np.hstack([buf[i * stride:i * stride + 3 * w] for i in range(h)])
   b = img[::3].reshape(h, w)
   g = img[1::3].reshape(h, w)
   r = img[2::3].reshape(h, w)
@@ -66,10 +63,10 @@ def get_snapshots(frame="roadCameraState", front_frame="driverCameraState", focu
   rear, front = None, None
   if frame is not None:
     c = vipc_clients[frame]
-    rear = extract_image(c.recv())
+    rear = extract_image(c.recv(), c.width, c.height, c.stride)
   if front_frame is not None:
     c = vipc_clients[front_frame]
-    front = extract_image(c.recv())
+    front = extract_image(c.recv(), c.width, c.height, c.stride)
   return rear, front
 
 
@@ -90,7 +87,7 @@ def snapshot():
     subprocess.check_call(["pgrep", "camerad"])
     print("Camerad already running")
     params.put_bool("IsTakingSnapshot", False)
-    params.remove("Offroad_IsTakingSnapshot")
+    params.delete("Offroad_IsTakingSnapshot")
     return None, None
   except subprocess.CalledProcessError:
     pass

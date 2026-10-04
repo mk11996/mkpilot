@@ -1,36 +1,44 @@
 from cereal import car
+from common.numpy_fast import clip, interp
+from selfdrive.car.nissan import nissancan
 from opendbc.can.packer import CANPacker
-from openpilot.selfdrive.car import apply_std_steer_angle_limits
-from openpilot.selfdrive.car.nissan import nissancan
-from openpilot.selfdrive.car.nissan.values import CAR, CarControllerParams
+from selfdrive.car.nissan.values import CAR, CarControllerParams
+
 
 VisualAlert = car.CarControl.HUDControl.VisualAlert
 
 
-class CarController:
+class CarController():
   def __init__(self, dbc_name, CP, VM):
     self.CP = CP
     self.car_fingerprint = CP.carFingerprint
-    self.frame = 0
 
     self.lkas_max_torque = 0
-    self.apply_angle_last = 0
+    self.last_angle = 0
 
     self.packer = CANPacker(dbc_name)
 
-  def update(self, CC, CS, now_nanos):
-    actuators = CC.actuators
-    hud_control = CC.hudControl
-    pcm_cancel_cmd = CC.cruiseControl.cancel
+  def update(self, c, enabled, CS, frame, actuators, cruise_cancel, hud_alert,
+             left_line, right_line, left_lane_depart, right_lane_depart):
 
     can_sends = []
 
     ### STEER ###
-    steer_hud_alert = 1 if hud_control.visualAlert in (VisualAlert.steerRequired, VisualAlert.ldw) else 0
+    acc_active = CS.out.cruiseState.enabled
+    lkas_hud_msg = CS.lkas_hud_msg
+    lkas_hud_info_msg = CS.lkas_hud_info_msg
+    apply_angle = actuators.steeringAngleDeg
 
-    if CC.latActive:
-      # windup slower
-      apply_angle = apply_std_steer_angle_limits(actuators.steeringAngleDeg, self.apply_angle_last, CS.out.vEgoRaw, CarControllerParams)
+    steer_hud_alert = 1 if hud_alert in (VisualAlert.steerRequired, VisualAlert.ldw) else 0
+
+    if c.active:
+      # # windup slower
+      if self.last_angle * apply_angle > 0. and abs(apply_angle) > abs(self.last_angle):
+        angle_rate_lim = interp(CS.out.vEgo, CarControllerParams.ANGLE_DELTA_BP, CarControllerParams.ANGLE_DELTA_V)
+      else:
+        angle_rate_lim = interp(CS.out.vEgo, CarControllerParams.ANGLE_DELTA_BP, CarControllerParams.ANGLE_DELTA_VU)
+
+      apply_angle = clip(apply_angle, self.last_angle - angle_rate_lim, self.last_angle + angle_rate_lim)
 
       # Max torque from driver before EPS will give up and not apply torque
       if not bool(CS.out.steeringPressed):
@@ -48,34 +56,36 @@ class CarController:
       apply_angle = CS.out.steeringAngleDeg
       self.lkas_max_torque = 0
 
-    self.apply_angle_last = apply_angle
+    self.last_angle = apply_angle
 
-    if self.CP.carFingerprint in (CAR.ROGUE, CAR.XTRAIL, CAR.ALTIMA) and pcm_cancel_cmd:
-      can_sends.append(nissancan.create_acc_cancel_cmd(self.packer, self.car_fingerprint, CS.cruise_throttle_msg))
+    if not enabled and acc_active:
+      # send acc cancel cmd if drive is disabled but pcm is still on, or if the system can't be activated
+      cruise_cancel = 1
+
+    if self.CP.carFingerprint in (CAR.ROGUE, CAR.XTRAIL, CAR.ALTIMA) and cruise_cancel:
+        can_sends.append(nissancan.create_acc_cancel_cmd(self.packer, self.car_fingerprint, CS.cruise_throttle_msg, frame))
 
     # TODO: Find better way to cancel!
     # For some reason spamming the cancel button is unreliable on the Leaf
     # We now cancel by making propilot think the seatbelt is unlatched,
     # this generates a beep and a warning message every time you disengage
-    if self.CP.carFingerprint in (CAR.LEAF, CAR.LEAF_IC) and self.frame % 2 == 0:
-      can_sends.append(nissancan.create_cancel_msg(self.packer, CS.cancel_msg, pcm_cancel_cmd))
+    if self.CP.carFingerprint in (CAR.LEAF, CAR.LEAF_IC) and frame % 2 == 0:
+        can_sends.append(nissancan.create_cancel_msg(self.packer, CS.cancel_msg, cruise_cancel))
 
     can_sends.append(nissancan.create_steering_control(
-      self.packer, apply_angle, self.frame, CC.latActive, self.lkas_max_torque))
+        self.packer, apply_angle, frame, enabled, self.lkas_max_torque))
 
-    # Below are the HUD messages. We copy the stock message and modify
-    if self.CP.carFingerprint != CAR.ALTIMA:
-      if self.frame % 2 == 0:
-        can_sends.append(nissancan.create_lkas_hud_msg(self.packer, CS.lkas_hud_msg, CC.enabled, hud_control.leftLaneVisible, hud_control.rightLaneVisible,
-                                                       hud_control.leftLaneDepart, hud_control.rightLaneDepart))
+    if lkas_hud_msg and lkas_hud_info_msg:
+      if frame % 2 == 0:
+        can_sends.append(nissancan.create_lkas_hud_msg(
+          self.packer, lkas_hud_msg, enabled, left_line, right_line, left_lane_depart, right_lane_depart))
 
-      if self.frame % 50 == 0:
+      if frame % 50 == 0:
         can_sends.append(nissancan.create_lkas_hud_info_msg(
-          self.packer, CS.lkas_hud_info_msg, steer_hud_alert
+          self.packer, lkas_hud_info_msg, steer_hud_alert
         ))
 
     new_actuators = actuators.copy()
     new_actuators.steeringAngleDeg = apply_angle
 
-    self.frame += 1
     return new_actuators, can_sends

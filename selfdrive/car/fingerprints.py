@@ -1,13 +1,45 @@
-from openpilot.selfdrive.car.interfaces import get_interface_attr
+import os
+from common.basedir import BASEDIR
 
-FW_VERSIONS = get_interface_attr('FW_VERSIONS', combine_brands=True, ignore_none=True)
-_FINGERPRINTS = get_interface_attr('FINGERPRINTS', combine_brands=True, ignore_none=True)
+
+def get_attr_from_cars(attr, result=dict, combine_brands=True):
+  # read all the folders in selfdrive/car and return a dict where:
+  # - keys are all the car models
+  # - values are attr values from all car folders
+  result = result()
+
+  for car_folder in [x[0] for x in os.walk(BASEDIR + '/selfdrive/car')]:
+    try:
+      car_name = car_folder.split('/')[-1]
+      values = __import__(f'selfdrive.car.{car_name}.values', fromlist=[attr])
+      if hasattr(values, attr):
+        attr_values = getattr(values, attr)
+      else:
+        continue
+
+      if isinstance(attr_values, dict):
+        for f, v in attr_values.items():
+          if combine_brands:
+            result[f] = v
+          else:
+            if car_name not in result:
+              result[car_name] = {}
+            result[car_name][f] = v
+      elif isinstance(attr_values, list):
+        result += attr_values
+
+    except (ImportError, OSError):
+      pass
+
+  return result
+
+
+FW_VERSIONS = get_attr_from_cars('FW_VERSIONS')
+_FINGERPRINTS = get_attr_from_cars('FINGERPRINTS')
 
 _DEBUG_ADDRESS = {1880: 8}   # reserved for debug purposes
 
-# rick - use Dict instead of dict (unsupported python 3.8 syntax)
-from typing import Dict
-def is_valid_for_fingerprint(msg, car_fingerprint: Dict[int, int]):
+def is_valid_for_fingerprint(msg, car_fingerprint):
   adr = msg.address
   # ignore addresses that are more than 11 bits
   return (adr in car_fingerprint and car_fingerprint[adr] == len(msg.dat)) or adr >= 0x800
@@ -28,15 +60,9 @@ def eliminate_incompatible_cars(msg, candidate_cars):
   for car_name in candidate_cars:
     car_fingerprints = _FINGERPRINTS[car_name]
 
-    # for fingerprint in car_fingerprints:
-    #   # add alien debug address
-    #   if is_valid_for_fingerprint(msg, fingerprint | _DEBUG_ADDRESS):
-    #     compatible_cars.append(car_name)
-    #     break
-
-    # rick - new syntax doesn't work on old python
     for fingerprint in car_fingerprints:
       fingerprint.update(_DEBUG_ADDRESS)  # add alien debug address
+
       if is_valid_for_fingerprint(msg, fingerprint):
         compatible_cars.append(car_name)
         break

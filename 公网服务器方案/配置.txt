@@ -1,0 +1,17 @@
+# The DNS A/AAAA record for this name must point to this server before startup.
+SERVER_DOMAIN=www.39love.net
+ACME_EMAIL=1445927922@qq.com
+
+# Generate unique values; never use the example text as a real secret.
+APP_SECRET=replace-with-at-least-32-random-characters
+POSTGRES_PASSWORD=replace-with-a-long-random-database-password
+LOCAL_ENROLL_CODE=replace-with-a-long-one-time-device-enrollment-code
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=CHANGE-THIS-APP-SECRET
+DIAGNOSTICS_TOKEN=replace-with-a-long-random-diagnostics-token
+
+# Leave unchanged unless the server cannot pull Docker Hub images.
+PYTHON_IMAGE=python:3.12-slim
+POSTGRES_IMAGE=postgres:16
+CADDY_IMAGE=caddy:2-alpine
+~                          

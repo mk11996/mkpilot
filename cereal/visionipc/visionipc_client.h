@@ -1,13 +1,11 @@
 #pragma once
-
-#include <set>
-#include <string>
 #include <vector>
+#include <string>
 #include <unistd.h>
 
-#include "cereal/messaging/messaging.h"
-#include "cereal/visionipc/visionipc.h"
-#include "cereal/visionipc/visionbuf.h"
+#include "messaging/messaging.h"
+#include "visionipc/visionipc.h"
+#include "visionipc/visionbuf.h"
 
 class VisionIpcClient {
 private:
@@ -16,6 +14,8 @@ private:
   SubSocket * sock;
   Poller * poller;
 
+  VisionStreamType type;
+
   cl_device_id device_id = nullptr;
   cl_context ctx = nullptr;
 
@@ -23,7 +23,6 @@ private:
 
 public:
   bool connected = false;
-  VisionStreamType type;
   int num_buffers = 0;
   VisionBuf buffers[VISIONIPC_MAX_FDS];
   VisionIpcClient(std::string name, VisionStreamType type, bool conflate, cl_device_id device_id=nullptr, cl_context ctx=nullptr);
@@ -31,5 +30,4 @@ public:
   VisionBuf * recv(VisionIpcBufExtra * extra=nullptr, const int timeout_ms=100);
   bool connect(bool blocking=true);
   bool is_connected() { return connected; }
-  static std::set<VisionStreamType> getAvailableStreams(const std::string &name, bool blocking = true);
 };
