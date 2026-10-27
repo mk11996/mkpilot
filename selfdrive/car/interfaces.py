@@ -32,7 +32,7 @@ class CarInterfaceBase(ABC):
     self.steering_unpressed = 0
     self.low_speed_alert = False
     self.silent_steer_warning = True
-    self.CP.enableTorqueInterceptor = False
+    # Preserve optional hardware configuration selected by the vehicle interface.
 
     if CarState is not None:
       self.CS = CarState(CP)

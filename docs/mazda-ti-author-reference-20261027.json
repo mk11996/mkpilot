@@ -1,0 +1,45 @@
+{
+  "source": "User-provided TI author reference: D:/Openpilot/ladybug13",
+  "files": [
+    {
+      "path": "selfdrive/car/mazda/carcontroller.py",
+      "size": 4166,
+      "sha256": "54ded89911acf9c30f953716b5f896c338ff9fc0e8c07e5c7064474bd615c61a"
+    },
+    {
+      "path": "selfdrive/car/mazda/mazdacan.py",
+      "size": 4096,
+      "sha256": "efd6bbc51cb92c9f6516ad4dda4615caaf1eec4392f8fae1785e88e663c02a7e"
+    },
+    {
+      "path": "selfdrive/car/mazda/interface.py",
+      "size": 7585,
+      "sha256": "bb66400eaa67a8a5e3e2fbc51c71698443549c8dd07cb5c285384077590dac9c"
+    },
+    {
+      "path": "selfdrive/car/mazda/carstate.py",
+      "size": 9692,
+      "sha256": "d7e240fd26430b6b9cde2a73f5ad397a58a0e6c424f068a2169530a7a1b6e4ae"
+    },
+    {
+      "path": "selfdrive/car/interfaces.py",
+      "size": 10156,
+      "sha256": "d48f5690c2b2a66c74d538ee33708da0887057549a203717cecd5c920fcf49cf"
+    },
+    {
+      "path": "selfdrive/controls/controlsd.py",
+      "size": 32003,
+      "sha256": "91f838941fecf8a578b06f639512bc54b3b0f6ec4e02f2081c43a29ac2607367"
+    },
+    {
+      "path": "panda/board/safety/safety_mazda.h",
+      "size": 6960,
+      "sha256": "657690716a21f229a3b996ab6f6609ffeae55166d4e8b3e4bb09655a6877f514"
+    },
+    {
+      "path": "opendbc/mazda_2017.dbc",
+      "size": 29599,
+      "sha256": "47566a983c0ab049c736e975291f82b95861749cc759acfed4251b6031fa9c74"
+    }
+  ]
+}

@@ -1,0 +1,137 @@
+{
+  "date": "2026-10-27",
+  "device_baseline_commit": "5b10eef9754127b1b8bd2059c37298b68889882a",
+  "python_regression": {
+    "passed": 18,
+    "tests": [
+      "test_author_run_and_ramp_down_gate_is_preserved (__main__.TestFeedbackState.test_author_run_and_ramp_down_gate_is_preserved)",
+      "test_camera_and_ecu_freshness_use_wall_clock (__main__.TestFeedbackState.test_camera_and_ecu_freshness_use_wall_clock)",
+      "test_empty_parser_cannot_confirm_ti (__main__.TestFeedbackState.test_empty_parser_cannot_confirm_ti)",
+      "test_feedback_required_on_bus_one_only (__main__.TestFeedbackState.test_feedback_required_on_bus_one_only)",
+      "test_fresh_feedback_timeout_corruption_and_recovery (__main__.TestFeedbackState.test_fresh_feedback_timeout_corruption_and_recovery)",
+      "test_inactive_extra_panda_is_allowed_but_another_active_mode_is_not (__main__.TestSafetyReadiness.test_inactive_extra_panda_is_allowed_but_another_active_mode_is_not)",
+      "test_rejects_stale_wrong_mode_param_and_unsafe_flags (__main__.TestSafetyReadiness.test_rejects_stale_wrong_mode_param_and_unsafe_flags)",
+      "test_safety_interruption_does_not_restart_probe_deadline (__main__.TestSafetyReadiness.test_safety_interruption_does_not_restart_probe_deadline)",
+      "test_confirmed_ti_retains_author_stream_and_zeroes_unavailable_torque (__main__.TestStartupAndLdw.test_confirmed_ti_retains_author_stream_and_zeroes_unavailable_torque)",
+      "test_enabled_without_active_control_keeps_stock_ldw (__main__.TestStartupAndLdw.test_enabled_without_active_control_keeps_stock_ldw)",
+      "test_failed_probe_cannot_switch_to_stock_steering_while_active (__main__.TestStartupAndLdw.test_failed_probe_cannot_switch_to_stock_steering_while_active)",
+      "test_istop_starts_after_continuous_readiness_and_is_bounded (__main__.TestStartupAndLdw.test_istop_starts_after_continuous_readiness_and_is_bounded)",
+      "test_late_discovery_after_vehicle_motion_is_locked_out (__main__.TestStartupAndLdw.test_late_discovery_after_vehicle_motion_is_locked_out)",
+      "test_ldw_checksum_changes_with_bit_without_changing_request (__main__.TestStartupAndLdw.test_ldw_checksum_changes_with_bit_without_changing_request)",
+      "test_ldw_ends_immediately_and_stale_camera_does_not_repeat (__main__.TestStartupAndLdw.test_ldw_ends_immediately_and_stale_camera_does_not_repeat)",
+      "test_ldw_four_switch_cases_never_copy_camera_torque (__main__.TestStartupAndLdw.test_ldw_four_switch_cases_never_copy_camera_torque)",
+      "test_no_host_generated_241 (__main__.TestStartupAndLdw.test_no_host_generated_241)",
+      "test_startup_probe_waits_for_panda_then_times_out_permanently (__main__.TestStartupAndLdw.test_startup_probe_waits_for_panda_then_times_out_permanently)"
+    ]
+  },
+  "python38_syntax": {
+    "passed": true,
+    "files": 8
+  },
+  "panda_host_harness": {
+    "passed": true,
+    "compiler": "Zig cc 0.13.0 (Windows host)",
+    "limitations": "Generic torque-limit helpers stubbed; not a target firmware build."
+  },
+  "device_compiled_can_roundtrips": {
+    "scope": "In-memory only; no CAN/USB socket or file writes",
+    "results": [
+      {
+        "id": "0x243",
+        "bytes": "48000000020000eb",
+        "decoded": {
+          "LDW": 0,
+          "LKAS_REQUEST": 0,
+          "CHKSUM": 235
+        }
+      },
+      {
+        "id": "0x243",
+        "bytes": "480080000200006b",
+        "decoded": {
+          "LDW": 1,
+          "LKAS_REQUEST": 0,
+          "CHKSUM": 107
+        }
+      },
+      {
+        "id": "0x249",
+        "target_bus": 1,
+        "bytes": "08000800c461ce60",
+        "decoded": {
+          "LKAS_REQUEST": 0,
+          "CHKSUM": 0,
+          "KEY": 3294744160
+        }
+      },
+      {
+        "id": "0x249",
+        "target_bus": 1,
+        "bytes": "08060806c461ce60",
+        "decoded": {
+          "LKAS_REQUEST": 6,
+          "CHKSUM": 6,
+          "KEY": 3294744160
+        }
+      },
+      {
+        "id": "0x249",
+        "target_bus": 1,
+        "bytes": "07fa07fac461ce60",
+        "decoded": {
+          "LKAS_REQUEST": -6,
+          "CHKSUM": -6,
+          "KEY": 3294744160
+        }
+      }
+    ]
+  },
+  "candidate_sources": [
+    {
+      "path": "selfdrive/car/interfaces.py",
+      "sha256": "d957f92f6a4eb55c01c05973bf34e77b279e7e721d9742e1bc3e72ca8f0ccd32"
+    },
+    {
+      "path": "selfdrive/car/mazda/carcontroller.py",
+      "sha256": "a32dc9063b8fde64ffaa5d43ba4f607e2261c7385bb0ac7493c26269b6e9d492"
+    },
+    {
+      "path": "selfdrive/car/mazda/carstate.py",
+      "sha256": "fdbacc7a9aff20f036983975e1fdc52eb0c14ea2dee6d8b37bfaeb516eabd6a0"
+    },
+    {
+      "path": "selfdrive/car/mazda/interface.py",
+      "sha256": "1b22031d4aca28d59a299761e099ec9cc639d8f9186d8a630efbd907e2f04dfe"
+    },
+    {
+      "path": "selfdrive/car/mazda/mazdacan.py",
+      "sha256": "6fdbb5417aada8e9233d09d313aa80317c26a2de8a8223f2480649c7877ab9dd"
+    },
+    {
+      "path": "selfdrive/car/mazda/startup.py",
+      "sha256": "57694c11f0f735f0b295eb0d20cf6edb7b51778c8a01726cb94681d5db809ae1"
+    },
+    {
+      "path": "selfdrive/controls/controlsd.py",
+      "sha256": "55c84c39e9f4185a3b2d12f87bd2488715c7906619ab8ba26b7750d370421cd0"
+    },
+    {
+      "path": "panda/board/safety/safety_mazda.h",
+      "sha256": "c06fc480e94d0b022aa16ca88692185e74296a3084b632cada8f7221e80f8a15"
+    },
+    {
+      "path": "selfdrive/car/mazda/tests/test_startup_ldw.py",
+      "sha256": "7e163ef25496ba51fe8be940d906b379b0084a3acddced69606f62ff8fde60ea"
+    },
+    {
+      "path": "selfdrive/car/mazda/tests/test_panda_forwarding.c",
+      "sha256": "58960e49019b191ef1ede7ce48a79278e88879caf6216a5109be05e260243245"
+    }
+  ],
+  "not_performed": [
+    "Device deployment",
+    "Panda flashing",
+    "Full target build",
+    "Physical vibration or vehicle startup validation"
+  ]
+}

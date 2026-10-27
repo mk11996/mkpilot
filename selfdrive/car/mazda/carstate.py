@@ -4,6 +4,7 @@ from opendbc.can.can_define import CANDefine
 from opendbc.can.parser import CANParser
 from selfdrive.car.interfaces import CarStateBase
 from selfdrive.car.mazda.values import DBC, LKAS_LIMITS, GEN1, TI_STATE, CAR
+from selfdrive.car.mazda.startup import MessageFreshness
 from selfdrive.swaglog import cloudlog
 
 ButtonType = car.CarState.ButtonEvent.Type
@@ -51,6 +52,12 @@ class CarState(CarStateBase):
     self.ti_violation = 0
     self.ti_error = 0
     self.ti_lkas_allowed = False
+    self.ti_feedback_valid = False
+    self.cam_lkas_fresh = False
+    self.istop_ready = False
+    self._ti_feedback_seen = False
+    self._cam_lkas = MessageFreshness(0.2)
+    self._engine_data = MessageFreshness(0.2)
 
     # 用于记录状态变化的变量
     self.gear_last = None
@@ -62,8 +69,30 @@ class CarState(CarStateBase):
     self.tpms_pressure_bar = [None, None, None, None]  # FL, FR, RL, RR
     self.tpms_temperature_c = [None, None, None, None]  # FL, FR, RL, RR
 
+  def _update_startup_state(self, cp, cp_cam, cp_body):
+    self.cam_lkas_fresh = self._cam_lkas.update(bool(cp_cam.vl_all.get("CAM_LKAS", {}).get("CTR")), cp_cam.can_valid)
+    engine_fresh = self._engine_data.update(bool(cp.vl_all.get("ENGINE_DATA", {}).get("RPM")), cp.can_valid)
+    self.istop_ready = engine_fresh and cp.vl["MSG_04"]["START_STOP"] == 2
+    self.ti_feedback_valid = False
+    self.ti_lkas_allowed = False
+    if self.CP.enableTorqueInterceptor:
+      feedback = cp_body.vl["TI_FEEDBACK"]
+      received = bool(cp_body.vl_all.get("TI_FEEDBACK", {}).get("STATE"))
+      self._ti_feedback_seen = self._ti_feedback_seen or received
+      redundant_torque_valid = feedback["TI_TORQUE_SENSOR"] == feedback["CHKSUM"]
+      # Retain the author's bus-1 parser timing; do not add a tighter TI timeout.
+      self.ti_feedback_valid = self._ti_feedback_seen and cp_body.can_valid and redundant_torque_valid
+      self.ti_version = feedback["VERSION_NUMBER"]
+      self.ti_state = feedback["STATE"]
+      self.ti_violation = feedback["VIOL"]
+      self.ti_error = feedback["ERROR"]
+      self.ti_ramp_down = self.ti_version > 1 and feedback["RAMP_DOWN"] == 1
+      # Keep the author's RUN/ramp-down gate; VIOL/ERROR remain diagnostic fields.
+      self.ti_lkas_allowed = not self.ti_ramp_down and self.ti_state == TI_STATE.RUN
+
   def update(self, cp, cp_cam, cp_body):
     ret = car.CarState.new_message()
+    self._update_startup_state(cp, cp_cam, cp_body)
 
     # Decode the raw Mazda TPMS frame. Do not require this frame in the CAN
     # checks because some vehicles only transmit it after wake-up or when a
@@ -298,17 +327,9 @@ class CarState(CarStateBase):
     ret.buttonEvents = button_events
 
     if self.CP.enableTorqueInterceptor:
-      ret.steeringTorque = cp_body.vl["TI_FEEDBACK"]["TI_TORQUE_SENSOR"]
-
-      self.ti_version = cp_body.vl["TI_FEEDBACK"]["VERSION_NUMBER"]
-      self.ti_state = cp_body.vl["TI_FEEDBACK"]["STATE"] # 发现 = 0, 关闭 = 1, 驾驶员接管 = 2, 运行=3
-      self.ti_violation = cp_body.vl["TI_FEEDBACK"]["VIOL"] # 0 = 无违规
-      self.ti_error = cp_body.vl["TI_FEEDBACK"]["ERROR"] # 0 = 无错误
-      if self.ti_version > 1:
-        self.ti_ramp_down = (cp_body.vl["TI_FEEDBACK"]["RAMP_DOWN"] == 1)
-
+      feedback = cp_body.vl["TI_FEEDBACK"]
+      ret.steeringTorque = feedback["TI_TORQUE_SENSOR"] if self.ti_feedback_valid else cp.vl["STEER_TORQUE"]["STEER_TORQUE_SENSOR"]
       ret.steeringPressed = abs(ret.steeringTorque) > LKAS_LIMITS.TI_STEER_THRESHOLD
-      self.ti_lkas_allowed = not self.ti_ramp_down and self.ti_state == TI_STATE.RUN
     else:
       ret.steeringTorque = cp.vl["STEER_TORQUE"]["STEER_TORQUE_SENSOR"]
       ret.steeringPressed = abs(ret.steeringTorque) > LKAS_LIMITS.STEER_THRESHOLD
@@ -455,12 +476,6 @@ class CarState(CarStateBase):
     self.cam_laneinfo = cp_cam.vl["CAM_LANEINFO"]
     self.steer_rate = cp.vl["STEER_RATE"]
 
-    # 保存原车摄像头的LDW信号（供interface.py触发openpilot警告使用）
-    # LDW_WARN: 0=无警告, 4=左侧偏离, 5=右侧偏离
-    ldw_warn = self.cam_laneinfo.get("LDW_WARN", 0)
-    self.cam_ldw_left = (ldw_warn == 4)
-    self.cam_ldw_right = (ldw_warn == 5)
-
     # 保留 ERR_BIT_1 检查，因为 openpilot 会复制这个错误位到发送的 CAN 消息中
     # 如果原车摄像头硬件故障，车辆 ECU 可能会拒绝带有错误位的转向命令
     ret.steerError = err_bit_1 == 1
@@ -566,21 +581,7 @@ class CarState(CarStateBase):
         ("NEW_BSM_47B", 10),
         ("TRACTION", 50),
       ]
-    # 如果使用扭矩传感器获取实际驾驶员扭矩
-    if CP.enableTorqueInterceptor:
-      signals += [
-        ("TI_TORQUE_SENSOR", "TI_FEEDBACK", 0),
-        ("CHKSUM", "TI_FEEDBACK", 0),
-        ("VERSION_NUMBER", "TI_FEEDBACK", 0),
-        ("STATE", "TI_FEEDBACK", 0),
-        ("VIOL", "TI_FEEDBACK", 0),
-        ("ERROR", "TI_FEEDBACK", 0),
-        ("RAMP_DOWN", "TI_FEEDBACK", 0),
-      ]
-
-      checks += [
-        ("TI_FEEDBACK", 100),
-      ]
+    # TI_FEEDBACK belongs to the bus-1 body parser, not the main bus.
       
     return CANParser(DBC[CP.carFingerprint]["pt"], signals, checks, 0)
 

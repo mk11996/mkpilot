@@ -40,7 +40,6 @@ const CanMsg MAZDA_TX_MSGS[] = {
   {MAZDA_LKAS2, 1, 8},
   {MAZDA_LKAS_HUD, 0, 8},
   {MAZDA_ISTOP_DISABLE, 0, 8},  // I-STOP关闭命令
-  {MAZDA_STEER_RATE, 2, 8}      // STEER_RATE (0x241) 发送到总线2（摄像头）
 };
 
 AddrCheckStruct mazda_addr_checks[] = {
@@ -242,8 +241,8 @@ static int mazda_fwd_hook(int bus, CANPacket_t *to_fwd) {
     // 阻止转发以下消息到总线2，避免与原车摄像头冲突：
     // - CAM_LKAS (0x243): 转向控制命令
     // - CAM_LANEINFO (0x440): 车道信息
-    // - STEER_RATE (0x241): 阻止转发，摄像头不需要此消息也能正常工作
-    bool block = (addr == MAZDA_LKAS) || (addr == MAZDA_LKAS_HUD) || (addr == MAZDA_STEER_RATE);
+    // EPS 0x241 must reach the camera unchanged, at its original cadence.
+    bool block = (addr == MAZDA_LKAS) || (addr == MAZDA_LKAS_HUD);
     if (!block) {
       bus_fwd = MAZDA_CAM;
     }

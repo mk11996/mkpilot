@@ -5,7 +5,7 @@ from selfdrive.config import Conversions as CV
 from selfdrive.car.mazda.values import CAR, LKAS_LIMITS
 from selfdrive.car import STD_CARGO_KG, scale_rot_inertia, scale_tire_stiffness, gen_empty_fingerprint, get_safety_config
 from selfdrive.car.interfaces import CarInterfaceBase
-from selfdrive import global_ti as TI
+from selfdrive.car.mazda.startup import panda_safety_ready
 from selfdrive.swaglog import cloudlog
 
 ButtonType = car.CarState.ButtonEvent.Type
@@ -35,12 +35,6 @@ class CarInterface(CarInterfaceBase):
     # 用于跟踪仅横向模式的激活状态变化
     self.lateral_only_active_last = False
 
-    # LDW方向盘震动开关缓存（避免每帧读取参数文件）
-    self.ldw_vibration_enabled = self.params.get("EnableLdwVibration") == b"1"
-
-    # TI自动检测状态跟踪
-    self.ti_detection_done = False  # TI检测是否已完成
-
   @staticmethod
   def compute_gb(accel, speed):
     return float(accel) / 4.0
@@ -65,8 +59,7 @@ class CarInterface(CarInterfaceBase):
 
     ret.dashcamOnly = False # candidate not in (CAR.CX5_2022, CAR.CX9_2021)
 
-    # Enable TI support by default for auto-detection
-    # Will be disabled at runtime if TI doesn't respond
+    # Probe once at startup; never enable an interceptor discovered later in motion.
     ret.enableTorqueInterceptor = True
 
     ret.steerActuatorDelay = 0.1
@@ -187,23 +180,6 @@ class CarInterface(CarInterfaceBase):
     self.cp_cam.update_strings(can_strings)
     self.cp_body.update_strings(can_strings)
 
-    # TI auto-detection: check if TI is responding after probe phase completes
-    if self.CP.enableTorqueInterceptor and not self.ti_detection_done and self.CC.ti_probe_frames >= self.CC.ti_probe_max:
-      # Probe phase completed, check if we're receiving TI_FEEDBACK messages
-      # Wait a few more frames after probe to ensure messages have time to arrive
-      if self.frame > self.CC.ti_probe_max + 5:
-        self.ti_detection_done = True
-        if self.cp_body.can_valid:
-          self.CC.ti_detected = True
-          cloudlog.warning("[TI] TI detected via feedback messages, TI support enabled")
-        else:
-          # No TI response, disable TI support
-          self.CP.enableTorqueInterceptor = False
-          cloudlog.warning("[TI] No TI response after probe phase, TI support disabled")
-
-    if self.CP.enableTorqueInterceptor and not TI.enabled:
-      TI.enabled = True
-      self.cp_body = self.CS.get_body_can_parser(self.CP)
     ret = self.CS.update(self.cp, self.cp_cam, self.cp_body)
 
     # 检查发动机是否运行（通过 START_STOP 信号判断）
@@ -226,7 +202,7 @@ class CarInterface(CarInterfaceBase):
       # Without TI, cp_body has no required messages and must not create a false CAN error.
       pt_can_valid = self.cp.can_valid
       cam_can_valid = self.cp_cam.can_valid
-      body_can_valid = self.cp_body.can_valid if self.cp_body is not None else True
+      body_can_valid = self.CC.ti_detected and self.CS.ti_feedback_valid
       ret.canValid = pt_can_valid and cam_can_valid and (not self.CP.enableTorqueInterceptor or body_can_valid)
       can_detail = (pt_can_valid, cam_can_valid, body_can_valid, bool(self.CP.enableTorqueInterceptor))
       if getattr(self, "_last_can_valid_detail", None) != can_detail:
@@ -234,19 +210,6 @@ class CarInterface(CarInterfaceBase):
         self._last_can_valid_detail = can_detail
     else:
       ret.canValid = True  # 熄火时忽略 CAN 检查
-
-    # TI disconnect detection: if TI was detected but cp_body becomes invalid, disable TI
-    if self.CC.ti_detected and self.CP.enableTorqueInterceptor and not self.cp_body.can_valid:
-      if not hasattr(self, 'ti_invalid_frames'):
-        self.ti_invalid_frames = 0
-      self.ti_invalid_frames += 1
-      # If TI messages missing for 50 frames (500ms), consider it disconnected
-      if self.ti_invalid_frames > 50:
-        self.CP.enableTorqueInterceptor = False
-        self.CC.ti_detected = False
-        cloudlog.warning("[TI] TI disconnected (no feedback for 500ms), TI support disabled")
-    elif self.cp_body.can_valid:
-      self.ti_invalid_frames = 0
 
     # 方案3改进版：读取UI按钮设置的激活状态
     # 用户通过UI按钮点击来激活/停用仅横向模式
@@ -339,17 +302,6 @@ class CarInterface(CarInterfaceBase):
     if self.CS.lkas_disabled:
       events.add(EventName.lkasDisabled)
 
-    # 原车LDW触发openpilot警告：
-    # 当EnableLdwVibration开关打开且openpilot未激活时（含ACC和仅横向模式），
-    # 原车摄像头检测到车道偏离，同步触发openpilot的LDW警告（屏幕+声音）
-    # 每100帧更新一次参数，避免每帧读取文件
-    if self.frame % 100 == 0:
-      self.ldw_vibration_enabled = self.params.get("EnableLdwVibration") == b"1"
-    op_engaged = ret.cruiseState.enabled or lateral_only_active
-    if self.ldw_vibration_enabled and not op_engaged:
-      if self.CS.cam_ldw_left or self.CS.cam_ldw_right:
-        events.add(EventName.ldw)
-
     # 仅横向模式：处理原车ACC取消按钮
     # 当用户按下取消按钮时，清除仅横向模式参数并立即生成取消事件
     if lateral_only_active:
@@ -388,6 +340,10 @@ class CarInterface(CarInterfaceBase):
 
     self.CS.out = ret.as_reader()
     return self.CS.out
+
+  def set_panda_state(self, states, valid):
+    ignored = (car.CarParams.SafetyModel.silent, car.CarParams.SafetyModel.noOutput)
+    self.CC.panda_ready = panda_safety_ready(states, self.CP.safetyConfigs, self.CP.unsafeMode, valid, ignored)
 
   def apply(self, c):
     ret = self.CC.update(c, self.CS, self.frame)

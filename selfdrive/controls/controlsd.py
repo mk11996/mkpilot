@@ -339,7 +339,7 @@ class Controls:
       if log.PandaState.FaultType.relayMalfunction in pandaState.faults:
         self.events.add(EventName.relayMalfunction)
 
-      if pandaState.torqueInterceptorDetected and not self.ti_ready:
+      if self.CP.carName != "mazda" and pandaState.torqueInterceptorDetected and not self.ti_ready:
         self.ti_ready = True
         self.CP.enableTorqueInterceptor = True
         #Update CP based on torque_interceptor_ready
@@ -849,6 +849,8 @@ class Controls:
 
     if not self.read_only and self.initialized:
       # send car controls over can
+      if self.CP.carName == "mazda":
+        self.CI.set_panda_state(self.sm['pandaStates'], self.sm.all_alive_and_valid(['pandaStates']))
       self.last_actuators, can_sends = self.CI.apply(CC)
       self.pm.send('sendcan', can_list_to_can_capnp(can_sends, msgtype='sendcan', valid=CS.canValid))
       CC.actuatorsOutput = self.last_actuators
