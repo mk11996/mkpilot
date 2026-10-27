@@ -76,6 +76,18 @@ cc -std=c11 selfdrive/car/mazda/tests/test_panda_forwarding.c -o /tmp/mazda-forw
 
 Additional validation checks Python syntax against the device's Python 3.8 language version and uses the currently deployed CAN packing/parsing libraries for pure-memory candidate `0x243`/`0x249` round trips. These checks do not open CAN/USB, execute controlsd or modify device files.
 
+### Device pycapnp compatibility follow-up
+
+During the authorized Panda update on 2026-10-27, normal startup exposed a `controlsd` exception in `panda_safety_ready`: the deployed pycapnp list reader rejects slices, even an empty trailing slice after the only Panda. The initial tests used ordinary Python lists and did not catch this. Extra Panda checks now use integer indices while retaining all safety-mode, parameter and unsafe-flag checks.
+
+The original failure was reproduced using actual device `cereal.log.Event.pandaStates` and `CarParams.safetyConfigs` readers. Four additional tests with those real types passed for a matching Panda, ignored/non-ignored extra Pandas, missing/invalid messages, and mismatched safety fields. Run them on a matching cereal/pycapnp installation without opening CAN or USB:
+
+```sh
+PYTHONPATH=/data/openpilot:/data/openpilot/pyextra python3 -B selfdrive/car/mazda/tests/test_startup_capnp.py -v
+```
+
+This follow-up changes host Python only. It does not change Panda firmware sources; the already built and hardware-verified `DEV-96d0a9eb-DEBUG` firmware remains compatible.
+
 ## Deployment constraint
 
 The host changes and rebuilt Panda firmware must be deployed together. The old firmware blocks native `0x241`, while the repaired host no longer synthesizes replacements. Deploying only the Python files would leave the camera without that EPS feedback.

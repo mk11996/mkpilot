@@ -88,4 +88,5 @@ def panda_safety_ready(states, configs, unsafe_mode, valid, ignored_modes=()):
     if (state.safetyModel != config.safetyModel or state.safetyParam != config.safetyParam or
         state.unsafeMode != unsafe_mode):
       return False
-  return all(state.safetyModel in ignored_modes for state in states[len(configs):])
+  # Device pycapnp list readers support integer indexing, but not slicing.
+  return all(states[i].safetyModel in ignored_modes for i in range(len(configs), len(states)))
