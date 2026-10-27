@@ -6,7 +6,7 @@ LaneChangeState = log.LateralPlan.LaneChangeState
 LaneChangeDirection = log.LateralPlan.LaneChangeDirection
 
 LANE_CHANGE_SPEED_MIN = 5 * CV.MPH_TO_MS
-LANE_CHANGE_TIME_MAX = 1.5
+LANE_CHANGE_TIME_MAX = 1.
 
 DESIRES = {
   LaneChangeDirection.none: {

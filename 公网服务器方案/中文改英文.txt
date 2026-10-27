@@ -1,3 +1,0 @@
-cd /home/admin
-mv "公网服务器方案" openpilot-public-server
-cd openpilot-public-server

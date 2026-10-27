@@ -33,6 +33,7 @@ def register(show_spinner=False) -> str:
   # treated the sentinel UnregisteredDevice as a valid persisted ID, so a
   # transient server/network failure could permanently prevent retries.
   needs_registration = None in (IMEI, HardwareSerial, dongle_id) or dongle_id == UNREGISTERED_DONGLE_ID
+
   pubkey = Path(PERSIST+"/comma/id_rsa.pub")
   if not pubkey.is_file():
     dongle_id = UNREGISTERED_DONGLE_ID

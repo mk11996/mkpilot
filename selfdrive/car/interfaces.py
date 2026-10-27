@@ -32,8 +32,7 @@ class CarInterfaceBase(ABC):
     self.steering_unpressed = 0
     self.low_speed_alert = False
     self.silent_steer_warning = True
-    # Don't override enableTorqueInterceptor - let car-specific code decide
-    # self.CP.enableTorqueInterceptor = False
+    self.CP.enableTorqueInterceptor = False
 
     if CarState is not None:
       self.CS = CarState(CP)

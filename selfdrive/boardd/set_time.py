@@ -4,9 +4,8 @@ import os
 import struct
 import usb1
 
-from common.time import MIN_DATE
-
 REQUEST_IN = usb1.ENDPOINT_IN | usb1.TYPE_VENDOR | usb1.RECIPIENT_DEVICE
+MIN_DATE = datetime.datetime(year=2021, month=4, day=1)
 
 def set_time(logger):
   sys_time = datetime.datetime.today()

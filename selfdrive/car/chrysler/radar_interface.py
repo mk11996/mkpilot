@@ -29,7 +29,7 @@ def _create_radar_can_parser(car_fingerprint):
                     [20] * msg_n +  # 20Hz (0.05s)
                     [20] * msg_n))  # 20Hz (0.05s)
 
-  return CANParser(DBC[car_fingerprint]['radar'], signals, checks, 0)
+  return CANParser(DBC[car_fingerprint]['radar'], signals, checks, 1)
 
 def _address_to_track(address):
   if address in RADAR_MSGS_C:
