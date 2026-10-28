@@ -47,6 +47,7 @@ class TiStartupProbe:
     self.clock = clock
     self.started = None
     self.state = 'waiting'
+    self.reason = None
 
   def update(self, ready, feedback, active, moving):
     if self.state in ('confirmed', 'disabled'):
@@ -54,6 +55,7 @@ class TiStartupProbe:
     # Do not discover a new steering device after control or vehicle motion starts.
     if active or moving:
       self.state = 'disabled'
+      self.reason = 'controls_active' if active else 'vehicle_moving'
       return self.state
     now = self.clock()
     if self.started is None:
@@ -64,6 +66,7 @@ class TiStartupProbe:
     # A safety interruption must not reset or extend the one-time deadline.
     if now - self.started >= self.window:
       self.state = 'disabled'
+      self.reason = 'feedback_timeout'
     elif ready and feedback:
       self.state = 'confirmed'
     return self.state
@@ -78,7 +81,7 @@ class TiStartupProbe:
 
 
 def stock_ldw_allowed(active, enabled, camera_fresh):
-  return camera_fresh and (not active or enabled)
+  return camera_fresh and enabled and not active
 
 
 def panda_safety_ready(states, configs, unsafe_mode, valid, ignored_modes=()):

@@ -119,7 +119,7 @@ class TestStartupAndLdw(unittest.TestCase):
     return self.controller.update(self.c, self.cs, frame)[1]
 
   def test_ldw_four_switch_cases_never_copy_camera_torque(self):
-    for active, switch, expected in [(False, False, 1), (False, True, 1), (True, False, 0), (True, True, 1)]:
+    for active, switch, expected in [(False, False, 0), (False, True, 1), (True, False, 0), (True, True, 0)]:
       with self.subTest(active=active, switch=switch):
         self.c.active = self.c.enabled = active
         self.controller.ldw_vibration_enabled = switch
@@ -136,11 +136,23 @@ class TestStartupAndLdw(unittest.TestCase):
     self.cs.cam_lkas_fresh = False
     self.assertEqual(next(m for m in self.sends() if m[0] == 0x243)[2]['LDW'], 0)
 
-  def test_enabled_without_active_control_keeps_stock_ldw(self):
+  def test_enabled_without_active_control_still_obeys_ldw_switch(self):
     self.c.enabled = True
     self.c.active = False
     self.controller.ldw_vibration_enabled = False
+    self.assertEqual(next(m for m in self.sends() if m[0] == 0x243)[2]['LDW'], 0)
+    self.controller.ldw_vibration_enabled = True
     self.assertEqual(next(m for m in self.sends() if m[0] == 0x243)[2]['LDW'], 1)
+
+  def test_moving_before_safety_ready_locks_ti_out_without_probing(self):
+    self.controller.panda_ready = False
+    self.cs.out.vEgo = 1
+    self.assertFalse(any(m[0] == 0x249 for m in self.sends()))
+    self.assertFalse(self.cp.enableTorqueInterceptor)
+    self.assertEqual(self.controller.ti_probe.reason, 'vehicle_moving')
+    self.cs.out.vEgo = 0
+    self.controller.panda_ready = self.cs.ti_feedback_valid = True
+    self.assertFalse(any(m[0] == 0x249 for m in self.sends()))
 
   def test_startup_probe_waits_for_panda_then_times_out_permanently(self):
     for frame in range(1, 151):

@@ -24,6 +24,8 @@ The vehicle-selected `enableTorqueInterceptor` flag survives the generic constru
 
 After Mazda safety becomes ready, a one-second, zero-torque startup probe runs at the existing control cadence. Actual feedback must have been received and its duplicated torque bytes must agree, as checked by the author's Panda detection rule. An empty parser's `can_valid` flag cannot establish TI presence. The author's bus-1 feedback parsing rate and timeout remain unchanged; no additional shorter TI feedback timeout is imposed.
 
+Transition logs include `vehicle_moving`, `controls_active`, or `feedback_timeout` when disabled, along with speed, active-control/Panda readiness, receipt/parser/redundant-torque checks, and TI state/ramp-down/diagnostic fields. The motion lockout applies even before safety readiness and before the first probe is sent.
+
 If feedback confirms TI during the startup window, the author's `STATE == RUN` and `not RAMP_DOWN` permission rule and ongoing TI message stream are preserved. `VIOL` and `ERROR` remain diagnostic fields. Invalid feedback inhibits torque and resets the software torque ramp to zero; normal controlsd CAN errors and the TI's own RUN/ramp-down behavior remain responsible for disengagement and permission. This does not change the interceptor firmware's internal safety logic or torque limits.
 
 If the startup window expires, the probe enters a permanent disabled state for this controlsd run. It cannot be reopened by later feedback, a stop at a traffic light, a setting toggle or a Panda safety interruption. Vehicle motion above 0.1 m/s or control activation before confirmation also ends discovery. When controls are inactive, the existing standard-EPS fallback is selected; a mode switch is never applied while controls are active. Restarting controlsd starts a new probe, still subject to the motion/control lockout. The disabled probe state and transition log provide a future warning integration point; no new screen warning is implemented here.
@@ -44,8 +46,10 @@ The existing `EnableLdwVibration` switch controls only the vibration relay:
 
 | openpilot control active | Switch off | Switch on |
 |---|---|---|
-| No | Relay stock LDW | Relay stock LDW |
-| Yes | Suppress LDW | Relay stock LDW |
+| No | Suppress LDW | Relay stock LDW |
+| Yes | Suppress LDW | Suppress LDW |
+
+This table reflects the user's corrected requirement on 2026-10-28. The previous table allowed warnings during active control when the switch was on and ignored the off switch during inactive control. The settings help text now describes the corrected behavior.
 
 `CarControl.active` is used, consistently with the existing Mazda controller's steering gate. A fresh `CAM_LKAS.LDW` bit is relayed into the openpilot-generated `0x243`; no guessed `CAM_LANEINFO` side enumeration, no camera `LKAS_REQUEST` substitution, and no extra 1.5-second hold are used. Missing camera frames for more than 200 ms or an invalid camera parser clears the relay. The existing checksum calculation includes the LDW bit.
 

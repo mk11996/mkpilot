@@ -53,6 +53,8 @@ class CarState(CarStateBase):
     self.ti_error = 0
     self.ti_lkas_allowed = False
     self.ti_feedback_valid = False
+    self.ti_feedback_parser_valid = False
+    self.ti_feedback_torque_match = False
     self.cam_lkas_fresh = False
     self.istop_ready = False
     self._ti_feedback_seen = False
@@ -75,13 +77,16 @@ class CarState(CarStateBase):
     self.istop_ready = engine_fresh and cp.vl["MSG_04"]["START_STOP"] == 2
     self.ti_feedback_valid = False
     self.ti_lkas_allowed = False
+    self.ti_feedback_parser_valid = False
+    self.ti_feedback_torque_match = False
     if self.CP.enableTorqueInterceptor:
       feedback = cp_body.vl["TI_FEEDBACK"]
       received = bool(cp_body.vl_all.get("TI_FEEDBACK", {}).get("STATE"))
       self._ti_feedback_seen = self._ti_feedback_seen or received
-      redundant_torque_valid = feedback["TI_TORQUE_SENSOR"] == feedback["CHKSUM"]
+      self.ti_feedback_parser_valid = cp_body.can_valid
+      self.ti_feedback_torque_match = feedback["TI_TORQUE_SENSOR"] == feedback["CHKSUM"]
       # Retain the author's bus-1 parser timing; do not add a tighter TI timeout.
-      self.ti_feedback_valid = self._ti_feedback_seen and cp_body.can_valid and redundant_torque_valid
+      self.ti_feedback_valid = self._ti_feedback_seen and self.ti_feedback_parser_valid and self.ti_feedback_torque_match
       self.ti_version = feedback["VERSION_NUMBER"]
       self.ti_state = feedback["STATE"]
       self.ti_violation = feedback["VIOL"]

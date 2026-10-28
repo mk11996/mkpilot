@@ -36,7 +36,7 @@ class CarController():
     # 启动时输出日志，确认代码被加载
     cloudlog.info("[I-STOP] CarController initialized, I-STOP feature loaded")
     cloudlog.info("[LDW] CarController initialized, LDW vibration feature loaded")
-    cloudlog.warning("[TI] One-time startup probe: waiting for Mazda safety mode")
+    cloudlog.warning("[TI] One-time startup probe: waiting for Mazda safety mode; vehicle motion locks TI out")
 
   def update(self, c, CS, frame):
     can_sends = []
@@ -45,7 +45,16 @@ class CarController():
       self.ti_probe.update(self.panda_ready, CS.ti_feedback_valid, c.active, CS.out.vEgo > 0.1)
       self.ti_detected = self.ti_probe.detected
       if self.ti_probe.state != previous_probe_state:
-        cloudlog.warning(f"[TI] Startup probe {previous_probe_state} -> {self.ti_probe.state}")
+        cloudlog.warning(f"[TI] Startup probe {previous_probe_state} -> {self.ti_probe.state}; "
+                         f"reason={self.ti_probe.reason}, safety_ready={self.panda_ready}, "
+                         f"speed_mps={CS.out.vEgo:.3f}, active={c.active}, feedback_valid={CS.ti_feedback_valid}, "
+                         f"feedback_seen={getattr(CS, '_ti_feedback_seen', False)}, "
+                         f"parser_valid={getattr(CS, 'ti_feedback_parser_valid', False)}, "
+                         f"torque_match={getattr(CS, 'ti_feedback_torque_match', False)}, "
+                         f"state={getattr(CS, 'ti_state', None)}, "
+                         f"version={getattr(CS, 'ti_version', None)}, "
+                         f"ramp_down={getattr(CS, 'ti_ramp_down', None)}, "
+                         f"violation={getattr(CS, 'ti_violation', None)}, error={getattr(CS, 'ti_error', None)}")
       if self.ti_probe.state == 'disabled' and not c.active:
         # Select the existing stock-EPS fallback only while controls are inactive.
         # The disabled probe is latched; later feedback cannot switch TI back on.
@@ -170,8 +179,8 @@ class CarController():
 
     # send steering command
 
-    # Relay only the stock vibration request, never the camera's steering torque.
-    # c.active is the same control gate used for steering above. No synthetic hold.
+    # The setting applies only while control is inactive. Always suppress vibration
+    # during active control; never copy the camera's steering torque or add a hold.
     ldw_active = stock_ldw_allowed(c.active, self.ldw_vibration_enabled, CS.cam_lkas_fresh) and bool(CS.cam_lkas.get("LDW", 0))
 
     # Probe once after safety readiness. A confirmed TI keeps the author's stream;
