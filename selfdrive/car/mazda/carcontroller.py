@@ -1,4 +1,3 @@
-from cereal import car
 from opendbc.can.packer import CANPacker
 from selfdrive.car.mazda import mazdacan
 from selfdrive.car.mazda.values import CarControllerParams, Buttons
@@ -6,8 +5,6 @@ from selfdrive.car.mazda.startup import IStopScheduler, TiStartupProbe, stock_ld
 from selfdrive.car import apply_std_steer_torque_limits, apply_ti_steer_torque_limits
 from common.params import Params
 from selfdrive.swaglog import cloudlog
-
-VisualAlert = car.CarControl.HUDControl.VisualAlert
 
 class CarController():
   def __init__(self, dbc_name, CP, VM):
@@ -27,6 +24,7 @@ class CarController():
     # LDW方向盘震动控制相关
     self.ldw_vibration_enabled = False  # LDW方向盘震动是否启用
     self.ldw_vibration_last_state = False  # 上次开关状态，用于检测变化
+    self.cam_laneinfo_was_fresh = False
 
     # Set by controlsd from current Panda safety-state reports, not ControlsReady.
     self.panda_ready = False
@@ -36,13 +34,13 @@ class CarController():
     # 启动时输出日志，确认代码被加载
     cloudlog.info("[I-STOP] CarController initialized, I-STOP feature loaded")
     cloudlog.info("[LDW] CarController initialized, LDW vibration feature loaded")
-    cloudlog.warning("[TI] One-time startup probe: waiting for Mazda safety mode; vehicle motion locks TI out")
+    cloudlog.warning("[TI] One-time startup probe: waiting for Mazda safety mode; speed does not block probing")
 
   def update(self, c, CS, frame):
     can_sends = []
     if CS.CP.enableTorqueInterceptor:
       previous_probe_state = self.ti_probe.state
-      self.ti_probe.update(self.panda_ready, CS.ti_feedback_valid, c.active, CS.out.vEgo > 0.1)
+      self.ti_probe.update(self.panda_ready, CS.ti_feedback_valid, c.active)
       self.ti_detected = self.ti_probe.detected
       if self.ti_probe.state != previous_probe_state:
         cloudlog.warning(f"[TI] Startup probe {previous_probe_state} -> {self.ti_probe.state}; "
@@ -161,21 +159,14 @@ class CarController():
     self.apply_steer_last = apply_steer
     self.ti_apply_steer_last = ti_apply_steer
 
-    # send HUD alerts
-    if frame % 50 == 0:
-      ldw = c.hudControl.visualAlert == VisualAlert.ldw
-      #steer_required = c.hudControl.visualAlert == VisualAlert.steerRequired
-      # TODO: find a way to silence audible warnings so we can add more hud alerts
-      #steer_required = steer_required and CS.lkas_allowed_speed
-      steer_required = CS.out.steerWarning
-
-      # 判断openpilot是否激活（engaged）
-      # c.enabled 表示 openpilot 已激活，无论是横向还是纵向控制
-      op_active = c.enabled
-
-      # 发送 CAM_LANEINFO 到总线 0（给仪表盘/HUD）
-      # Panda 会阻止转发到总线 2，避免与原车摄像头冲突
-      can_sends.append(mazdacan.create_alert_command(self.packer, CS.cam_laneinfo, ldw, steer_required, self.ldw_vibration_enabled, op_active))
+    # Forward each fresh stock HUD update once, independently of the vibration
+    # setting and engagement. Clear stale warnings immediately; keep the prior
+    # 2 Hz fallback cadence while the camera message is missing.
+    if (CS.cam_laneinfo_updated or CS.cam_laneinfo_fresh != self.cam_laneinfo_was_fresh or
+        (not CS.cam_laneinfo_fresh and frame % 50 == 0)):
+      can_sends.append(mazdacan.create_alert_command(self.packer, CS.cam_laneinfo,
+                                                    CS.out.steerWarning, CS.cam_laneinfo_fresh))
+    self.cam_laneinfo_was_fresh = CS.cam_laneinfo_fresh
 
     # send steering command
 

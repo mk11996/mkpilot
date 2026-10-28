@@ -1,6 +1,6 @@
 # Mazda TI startup, I-stop timing and stock LDW relay
 
-This repair follows the deployed-source baseline in the preceding commit. The device and the Windows source directories were not modified by this repair. No Panda was flashed.
+This document describes the repair following the deployed-source baseline, including the user's revised TI/HUD requirements on 2026-10-28. Deployment and build records are maintained separately from the original host-only validation records.
 
 ## TI author's reference
 
@@ -24,11 +24,11 @@ The vehicle-selected `enableTorqueInterceptor` flag survives the generic constru
 
 After Mazda safety becomes ready, a one-second, zero-torque startup probe runs at the existing control cadence. Actual feedback must have been received and its duplicated torque bytes must agree, as checked by the author's Panda detection rule. An empty parser's `can_valid` flag cannot establish TI presence. The author's bus-1 feedback parsing rate and timeout remain unchanged; no additional shorter TI feedback timeout is imposed.
 
-Transition logs include `vehicle_moving`, `controls_active`, or `feedback_timeout` when disabled, along with speed, active-control/Panda readiness, receipt/parser/redundant-torque checks, and TI state/ramp-down/diagnostic fields. The motion lockout applies even before safety readiness and before the first probe is sent.
+The user removed the movement lockout on 2026-10-28 after a startup in drive was identified in the logs. Vehicle speed no longer blocks the one-time probe. Transition logs distinguish `controls_active` and `feedback_timeout`, along with speed, active-control/Panda readiness, receipt/parser/redundant-torque checks, and TI state/ramp-down/diagnostic fields.
 
 If feedback confirms TI during the startup window, the author's `STATE == RUN` and `not RAMP_DOWN` permission rule and ongoing TI message stream are preserved. `VIOL` and `ERROR` remain diagnostic fields. Invalid feedback inhibits torque and resets the software torque ramp to zero; normal controlsd CAN errors and the TI's own RUN/ramp-down behavior remain responsible for disengagement and permission. This does not change the interceptor firmware's internal safety logic or torque limits.
 
-If the startup window expires, the probe enters a permanent disabled state for this controlsd run. It cannot be reopened by later feedback, a stop at a traffic light, a setting toggle or a Panda safety interruption. Vehicle motion above 0.1 m/s or control activation before confirmation also ends discovery. When controls are inactive, the existing standard-EPS fallback is selected; a mode switch is never applied while controls are active. Restarting controlsd starts a new probe, still subject to the motion/control lockout. The disabled probe state and transition log provide a future warning integration point; no new screen warning is implemented here.
+If the startup window expires, the probe enters a permanent disabled state for this controlsd run. It cannot be reopened by later feedback, a stop at a traffic light, a setting toggle or a Panda safety interruption. Control activation before confirmation also ends discovery. When controls are inactive, the existing standard-EPS fallback is selected; a mode switch is never applied while controls are active. Restarting controlsd starts a new probe, including while the vehicle is moving if controls are inactive. The disabled probe state and transition log provide a future warning integration point; no new screen warning is implemented here.
 
 ### I-stop
 
@@ -53,9 +53,13 @@ This table reflects the user's corrected requirement on 2026-10-28. The previous
 
 `CarControl.active` is used, consistently with the existing Mazda controller's steering gate. A fresh `CAM_LKAS.LDW` bit is relayed into the openpilot-generated `0x243`; no guessed `CAM_LANEINFO` side enumeration, no camera `LKAS_REQUEST` substitution, and no extra 1.5-second hold are used. Missing camera frames for more than 200 ms or an invalid camera parser clears the relay. The existing checksum calculation includes the LDW bit.
 
-No new HUD or instrument left/right indication is added. The old custom software LDW event inferred from the incorrectly decoded side enumeration is removed; stock lane-info HUD handling is otherwise unchanged.
+### Independent stock HUD side warnings
 
-This verifies propagation of the warning request. Source inspection and offline packing cannot prove that a specific EPS firmware will physically vibrate when standard torque is zero and TI is active.
+At the user's request, the OEM HUD left/right warnings are independent of both engagement and the vibration setting. `CAM_LANEINFO.LDW_WARN_LL` is bit 57, `LDW_WARN_RL` is bit 58, and `HANDS_ON_STEER_WARN` is bit 56, matching the supplied DBC. The old `LDW_WARN` three-bit field incorrectly mixed all three and is removed. The camera parser now declares all the known HUD message fields so lane/TJA/error context is retained during packing.
+
+Each newly received stock HUD message is forwarded through the host-generated `0x440`. Camera parser invalidity or more than one second without this 2 Hz message clears the side warnings; there is no synthetic warning hold. Missing-message fallback retains the existing 2 Hz cadence. HUD display is not a request to steer and does not enable vibration.
+
+The user reports that the prior physical vibration relay works. New native byte/decoder tests verify the left/right HUD bit positions and isolation from hands-on warnings. Physical HUD appearance still requires vehicle validation.
 
 ### EPS 0x241
 
@@ -65,7 +69,7 @@ Camera `0x243`/`0x440` forwarding remains blocked as before. This change does no
 
 ## Validation
 
-Hardware-free Python regression tests execute the actual startup helpers, controller, CAN message helpers and CarState startup-state method. They cover startup timeout lockout, late feedback while moving, no active-control mode switch, a safety interruption not reopening the deadline, the LDW truth table, I-stop delay and the retained author RUN/ramp-down behavior. External cereal/CAN dependencies and the unchanged torque limiter are isolated with stubs; these tests do not validate physical torque limits or ECU behavior.
+Hardware-free Python regression tests execute the actual startup helpers, controller, CAN message helpers and CarState startup-state method. They cover startup timeout lockout, startup feedback while moving with controls inactive, no active-control mode switch, a safety interruption not reopening the deadline, the vibration truth table, independent HUD sides/freshness, I-stop delay and the retained author RUN/ramp-down behavior. External cereal/CAN dependencies and the unchanged torque limiter are isolated with stubs; these tests do not validate physical torque limits or ECU behavior.
 
 ```sh
 python3 -B selfdrive/car/mazda/tests/test_startup_ldw.py -v

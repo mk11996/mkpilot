@@ -112,7 +112,8 @@ class TestStartupAndLdw(unittest.TestCase):
                                    cruiseControl=types.SimpleNamespace(cancel=False), hudControl=types.SimpleNamespace(visualAlert=0))
     self.cs = types.SimpleNamespace(CP=self.cp, ti_feedback_valid=False, ti_lkas_allowed=True, istop_ready=True, cam_lkas_fresh=True,
                                     cam_lkas={'LDW': 1, 'BIT_1': 0, 'ERR_BIT_1': 0, 'ERR_BIT_2': 0, 'LKAS_REQUEST': 500},
-                                    cam_laneinfo={}, out=types.SimpleNamespace(standstill=False, steeringTorque=0, vEgo=0,
+                                    cam_laneinfo={'LDW_WARN_LL': 1, 'LDW_WARN_RL': 0}, cam_laneinfo_fresh=True, cam_laneinfo_updated=True,
+                                    out=types.SimpleNamespace(standstill=False, steeringTorque=0, vEgo=0,
                                     cruiseState=types.SimpleNamespace(enabled=False), brakePressed=False, steerWarning=False))
 
   def sends(self, frame=1):
@@ -144,15 +145,18 @@ class TestStartupAndLdw(unittest.TestCase):
     self.controller.ldw_vibration_enabled = True
     self.assertEqual(next(m for m in self.sends() if m[0] == 0x243)[2]['LDW'], 1)
 
-  def test_moving_before_safety_ready_locks_ti_out_without_probing(self):
+  def test_moving_start_waits_for_safety_then_probes_without_lockout(self):
     self.controller.panda_ready = False
     self.cs.out.vEgo = 1
     self.assertFalse(any(m[0] == 0x249 for m in self.sends()))
-    self.assertFalse(self.cp.enableTorqueInterceptor)
-    self.assertEqual(self.controller.ti_probe.reason, 'vehicle_moving')
-    self.cs.out.vEgo = 0
-    self.controller.panda_ready = self.cs.ti_feedback_valid = True
-    self.assertFalse(any(m[0] == 0x249 for m in self.sends()))
+    self.assertTrue(self.cp.enableTorqueInterceptor)
+    self.assertEqual(self.controller.ti_probe.state, 'waiting')
+    self.controller.panda_ready = True
+    self.assertTrue(any(m[0] == 0x249 for m in self.sends()))
+    self.clock.now = 0.5
+    self.cs.ti_feedback_valid = True
+    self.sends()
+    self.assertTrue(self.controller.ti_detected)
 
   def test_startup_probe_waits_for_panda_then_times_out_permanently(self):
     for frame in range(1, 151):
@@ -186,13 +190,12 @@ class TestStartupAndLdw(unittest.TestCase):
     self.cs.ti_feedback_valid = True
     self.assertEqual(next(m for m in self.sends() if m[0] == 0x249)[2]['LKAS_REQUEST'], values.CarControllerParams.TI_STEER_DELTA_UP)
 
-  def test_late_discovery_after_vehicle_motion_is_locked_out(self):
+  def test_startup_feedback_can_confirm_while_moving_and_inactive(self):
     self.cs.out.vEgo = 1
     self.controller.panda_ready = self.cs.ti_feedback_valid = True
-    self.assertFalse(any(m[0] == 0x249 for m in self.sends()))
-    self.assertEqual(self.controller.ti_probe.state, 'disabled')
-    self.cs.out.vEgo = 0
-    self.assertFalse(any(m[0] == 0x249 for m in self.sends()))
+    self.assertTrue(any(m[0] == 0x249 for m in self.sends()))
+    self.assertEqual(self.controller.ti_probe.state, 'confirmed')
+    self.assertTrue(self.cp.enableTorqueInterceptor)
 
   def test_failed_probe_cannot_switch_to_stock_steering_while_active(self):
     self.c.active = self.controller.panda_ready = self.cs.ti_feedback_valid = True
@@ -200,12 +203,35 @@ class TestStartupAndLdw(unittest.TestCase):
     self.assertFalse(any(m[0] == 0x249 for m in commands))
     self.assertEqual(next(m for m in commands if m[0] == 0x243)[2]['LKAS_REQUEST'], 0)
     self.assertTrue(self.cp.enableTorqueInterceptor)
+    self.assertEqual(self.controller.ti_probe.reason, 'controls_active')
     self.c.active = False
     self.sends()
     self.assertFalse(self.cp.enableTorqueInterceptor)
 
   def test_no_host_generated_241(self):
     self.assertFalse(any(m[0] == 0x241 for m in self.sends()))
+
+  def test_hud_sides_are_independent_of_control_and_vibration_setting(self):
+    for active in (False, True):
+      for enabled in (False, True):
+        for left, right in ((0, 0), (1, 0), (0, 1), (1, 1)):
+          with self.subTest(active=active, enabled=enabled, left=left, right=right):
+            self.c.active = self.c.enabled = active
+            self.controller.ldw_vibration_enabled = enabled
+            self.cs.cam_laneinfo = {'LDW_WARN_LL': left, 'LDW_WARN_RL': right, 'TJA': 5}
+            hud = next(m for m in self.sends() if m[0] == 0x440)
+            self.assertEqual((hud[2]['LDW_WARN_LL'], hud[2]['LDW_WARN_RL']), (left, right))
+            self.assertEqual(hud[2]['TJA'], 5)
+
+  def test_hud_new_message_and_stale_clear_do_not_replay_side_warning(self):
+    self.sends()
+    self.cs.cam_laneinfo_updated = False
+    self.assertFalse(any(m[0] == 0x440 for m in self.sends(2)))
+    self.cs.cam_laneinfo_fresh = False
+    hud = next(m for m in self.sends(3) if m[0] == 0x440)
+    self.assertEqual((hud[2]['LDW_WARN_LL'], hud[2]['LDW_WARN_RL']), (0, 0))
+    self.assertFalse(any(m[0] == 0x440 for m in self.sends(4)))
+    self.assertTrue(any(m[0] == 0x440 for m in self.sends(50)))
 
   def test_istop_starts_after_continuous_readiness_and_is_bounded(self):
     self.controller.istop_enabled = True
@@ -237,7 +263,7 @@ class TestFeedbackState(unittest.TestCase):
     self.clock = Clock()
     self.cp = types.SimpleNamespace(carFingerprint=values.CAR.MAZDA3, enableTorqueInterceptor=True)
     self.state = State(self.cp)
-    for watcher in [self.state._cam_lkas, self.state._engine_data]:
+    for watcher in [self.state._cam_lkas, self.state._cam_laneinfo, self.state._engine_data]:
       watcher.clock = self.clock
     self.main = types.SimpleNamespace(can_valid=True, vl={'MSG_04': {'START_STOP': 2}}, vl_all={'ENGINE_DATA': {'RPM': [800]}})
     self.camera = types.SimpleNamespace(can_valid=True, vl_all={'CAM_LKAS': {'CTR': [0]}})
@@ -298,18 +324,39 @@ class TestFeedbackState(unittest.TestCase):
     self.assertEqual(body.bus, 1)
     self.assertIn(('TI_FEEDBACK', 50), body.checks)
 
+  def test_hud_freshness_uses_received_frames_and_clears_on_timeout(self):
+    self.camera.vl_all['CAM_LANEINFO'] = {'LDW_WARN_LL': [0], 'LDW_WARN_RL': [0]}
+    self.update()
+    self.assertTrue(self.state.cam_laneinfo_updated)
+    self.assertTrue(self.state.cam_laneinfo_fresh)
+    self.camera.vl_all = {}
+    self.clock.now = 0.6
+    self.update()
+    self.assertFalse(self.state.cam_laneinfo_updated)
+    self.assertTrue(self.state.cam_laneinfo_fresh)
+    self.clock.now = 1.01
+    self.update()
+    self.assertFalse(self.state.cam_laneinfo_fresh)
+
+  def test_camera_parser_declares_both_sides_and_all_hud_fields(self):
+    parser = State.get_cam_can_parser(self.cp)
+    names = {signal[0] for signal in parser.signals if signal[1] == 'CAM_LANEINFO'}
+    self.assertTrue({'LDW_WARN_LL', 'LDW_WARN_RL', 'HANDS_ON_STEER_WARN', 'HANDS_ON_STEER_WARN_2',
+                     'HANDS_WARN_3_BITS', 'ERR_BIT', 'TJA', 'TJA_TRANSITION'} <= names)
+    self.assertNotIn('LDW_WARN', names)
+
 
 class TestSafetyReadiness(unittest.TestCase):
   def test_safety_interruption_does_not_restart_probe_deadline(self):
     clock = Clock()
     probe = startup.TiStartupProbe(clock=clock)
-    self.assertEqual(probe.update(True, False, False, False), 'probing')
+    self.assertEqual(probe.update(True, False, False), 'probing')
     clock.now = 0.3
-    self.assertEqual(probe.update(False, False, False, False), 'probing')
+    self.assertEqual(probe.update(False, False, False), 'probing')
     clock.now = 1.1
-    self.assertEqual(probe.update(True, True, False, False), 'disabled')
+    self.assertEqual(probe.update(True, True, False), 'disabled')
     clock.now = 2
-    self.assertEqual(probe.update(True, True, False, False), 'disabled')
+    self.assertEqual(probe.update(True, True, False), 'disabled')
 
   def test_rejects_stale_wrong_mode_param_and_unsafe_flags(self):
     config = types.SimpleNamespace(safetyModel=13, safetyParam=1)

@@ -49,13 +49,14 @@ class TiStartupProbe:
     self.state = 'waiting'
     self.reason = None
 
-  def update(self, ready, feedback, active, moving):
+  def update(self, ready, feedback, active):
     if self.state in ('confirmed', 'disabled'):
       return self.state
-    # Do not discover a new steering device after control or vehicle motion starts.
-    if active or moving:
+    # Do not switch steering hardware after control starts. Vehicle speed does
+    # not prevent the one-time startup handshake while controls are inactive.
+    if active:
       self.state = 'disabled'
-      self.reason = 'controls_active' if active else 'vehicle_moving'
+      self.reason = 'controls_active'
       return self.state
     now = self.clock()
     if self.started is None:

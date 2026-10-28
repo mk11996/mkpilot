@@ -607,7 +607,9 @@ BO_ 1088 CAM_LANEINFO: 8 XXX
  SG_ HANDS_WARN_3_BITS : 51|3@0+ (1,0) [0|7] "" XXX
  SG_ S1 : 52|1@0+ (1,0) [0|1] "" XXX
  SG_ S1_HBEAM : 54|1@0+ (1,0) [0|31] "" XXX
- SG_ LDW_WARN : 58|3@0+ (1,0) [0|3] "" XXX
+ SG_ HANDS_ON_STEER_WARN : 56|1@0+ (1,0) [0|1] "" XXX
+ SG_ LDW_WARN_LL : 57|1@0+ (1,0) [0|1] "" XXX
+ SG_ LDW_WARN_RL : 58|1@0+ (1,0) [0|1] "" XXX
  SG_ HANDS_ON_STEER_WARN_2 : 59|1@0+ (1,0) [0|1] "" XXX
  SG_ BIT3 : 62|1@0+ (1,0) [0|3] "" XXX
 

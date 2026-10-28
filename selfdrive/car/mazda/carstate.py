@@ -56,9 +56,12 @@ class CarState(CarStateBase):
     self.ti_feedback_parser_valid = False
     self.ti_feedback_torque_match = False
     self.cam_lkas_fresh = False
+    self.cam_laneinfo_fresh = False
+    self.cam_laneinfo_updated = False
     self.istop_ready = False
     self._ti_feedback_seen = False
     self._cam_lkas = MessageFreshness(0.2)
+    self._cam_laneinfo = MessageFreshness(1.0)  # stock CAM_LANEINFO is 2 Hz
     self._engine_data = MessageFreshness(0.2)
 
     # 用于记录状态变化的变量
@@ -73,6 +76,8 @@ class CarState(CarStateBase):
 
   def _update_startup_state(self, cp, cp_cam, cp_body):
     self.cam_lkas_fresh = self._cam_lkas.update(bool(cp_cam.vl_all.get("CAM_LKAS", {}).get("CTR")), cp_cam.can_valid)
+    self.cam_laneinfo_updated = bool(cp_cam.vl_all.get("CAM_LANEINFO", {}))
+    self.cam_laneinfo_fresh = self._cam_laneinfo.update(self.cam_laneinfo_updated, cp_cam.can_valid)
     engine_fresh = self._engine_data.update(bool(cp.vl_all.get("ENGINE_DATA", {}).get("RPM")), cp.can_valid)
     self.istop_ready = engine_fresh and cp.vl["MSG_04"]["START_STOP"] == 2
     self.ti_feedback_valid = False
@@ -618,9 +623,15 @@ class CarState(CarStateBase):
         ("NO_ERR_BIT", "CAM_LANEINFO"),
         ("S1", "CAM_LANEINFO"),
         ("S1_HBEAM", "CAM_LANEINFO"),
-        # LDW 车道偏离警告信号 - 必须声明才能被 CAN 解析器解析
-        # LDW_WARN: 0=无警告, 1=左侧偏离, 3=右侧偏离
-        ("LDW_WARN", "CAM_LANEINFO"),
+        ("TJA", "CAM_LANEINFO"),
+        ("TJA_TRANSITION", "CAM_LANEINFO"),
+        ("ERR_BIT", "CAM_LANEINFO"),
+        ("HANDS_WARN_3_BITS", "CAM_LANEINFO"),
+        ("HANDS_ON_STEER_WARN", "CAM_LANEINFO"),
+        ("HANDS_ON_STEER_WARN_2", "CAM_LANEINFO"),
+        # Independent stock HUD side flags, separate from the hands-on bit.
+        ("LDW_WARN_LL", "CAM_LANEINFO"),
+        ("LDW_WARN_RL", "CAM_LANEINFO"),
       ]
 
       checks += [

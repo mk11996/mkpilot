@@ -11,22 +11,24 @@ Device startup logs read on 2026-10-28 show the following events. Times are Asia
 
 The failed startup is in `swaglog.0000022354`; the stationary success is in `swaglog.0000022399`. Both used the expected Panda firmware signature.
 
-For the identified failed startup, the one-second handshake timer did not expire: probing never began. The existing guard disables an unconfirmed TI when speed exceeds 0.1 m/s or controls are active, including while waiting for Panda readiness. This is the user's requested prevention of TI activation after driving has started. The stationary startup confirmed feedback in about 8.4 ms. This evidence does not establish the cause of other unrecorded failures or prove torque output while engaged.
+For the identified failed startup, the one-second handshake timer did not expire: probing never began. The then-deployed guard disabled an unconfirmed TI when speed exceeded 0.1 m/s or controls were active, including while waiting for Panda readiness. The stationary startup confirmed feedback in about 8.4 ms. This evidence does not establish the cause of other unrecorded failures or prove torque output while engaged. The user subsequently requested removal of the movement lockout and independent OEM HUD side warnings; the final implementation below follows those updated requirements.
 
 ## Changes
 
-- Preserve startup-only TI selection, the one-second deadline, motion/control lockout, EPS fallback, and the author's RUN/ramp-down permission rules.
-- Add explicit disable reasons (`vehicle_moving`, `controls_active`, `feedback_timeout`) and transition diagnostics: speed, active-control state, safety readiness, actual feedback receipt, parser validity, redundant torque match, TI state/version/ramp-down/violation/error.
+- Remove TI's movement lockout: a moving vehicle may perform the one-time startup handshake while controls are inactive. Preserve the one-second deadline, active-control lockout, permanent timeout latch, EPS fallback, and the author's RUN/ramp-down permission rules.
+- Log `controls_active` or `feedback_timeout` and transition diagnostics: speed, active-control state, safety readiness, actual feedback receipt, parser validity, redundant torque match, TI state/version/ramp-down/violation/error.
 - Correct `EnableLdwVibration` semantics: inactive control plus switch on relays fresh stock vibration; switch off suppresses it. Active control always suppresses vibration. Camera steering torque is never copied. Update the settings description accordingly.
-- Do not add HUD or left/right warning functionality. The user reports that the physical LDW vibration works and that camera faults disappear after the vehicle's normal power cycle.
+- Relay OEM HUD left/right warnings independently of both vibration and engagement. Replace the erroneous three-bit `LDW_WARN` with `LDW_WARN_LL` at bit 57, `LDW_WARN_RL` at bit 58 and the separate `HANDS_ON_STEER_WARN` at bit 56, matching the supplied DBC. Declare the remaining known HUD fields in the camera parser. Forward each incoming HUD frame; clear side warnings on invalid/stale camera input.
+- Keep the existing hands-on warning overlay. Do not synthesize a side indication from openpilot model output, pass camera steering torque, or change Panda safety forwarding. The user reports that physical vibration works and camera faults disappear after a normal vehicle power cycle.
 
 ## Validation
 
-The hardware-free suite includes the four LDW switch/control combinations, immediate fresh-warning handling, existing TI startup/feedback safety checks, and movement lockout before Panda readiness. The deployed cereal/pycapnp readiness suite remains applicable. These tests do not send CAN, enable controls, or prove physical ECU behavior.
+The hardware-free suite includes the four vibration switch/control combinations, independent HUD sides and freshness, TI startup confirmation while moving with controls inactive, timeout/active-control lockout, and existing feedback safety checks. The deployed cereal/pycapnp readiness suite remains applicable. Native CAN tests verify raw byte positions, preservation of lane/TJA context, stale-warning clearing, and parser separation of left/right from hands-on warnings. These tests do not send CAN, enable controls, or prove physical ECU behavior.
 
 ```sh
 python3 -B selfdrive/car/mazda/tests/test_startup_ldw.py -v
 PYTHONPATH=/data/openpilot:/data/openpilot/pyextra python3 -B selfdrive/car/mazda/tests/test_startup_capnp.py -v
+PYTHONPATH=/data/openpilot:/data/openpilot/pyextra python3 -B selfdrive/car/mazda/tests/test_hud_native.py -v
 ```
 
-This change affects host Python and settings text. There are no Panda safety-source or DBC changes. A normal build is required for the changed settings text; if a build regenerates Panda's commit-version label, normal pandad may update the signature to that matching build.
+This change affects host Python, the Mazda DBC and settings text. A normal build must regenerate `libdbc.so` and its parser/packer links as well as the UI. Do not substitute the stale Windows CAN binaries. There are no Panda safety-source changes; if a build regenerates Panda's commit-version label, normal pandad may update the signature to that matching build.

@@ -156,7 +156,7 @@ AdvancedPanel::AdvancedPanel(SettingsWindow *parent) : ListWidget(parent) {
     {
       "EnableLdwVibration",
       "车道偏离方向盘震动",
-      "马自达车型专用：openpilot未接管时，开启则保留原车车道偏离方向盘震动，关闭则屏蔽；openpilot接管控制期间始终屏蔽震动（需要车辆支持此功能）",
+      "马自达车型专用：openpilot未接管时，开启则保留原车车道偏离方向盘震动，关闭则屏蔽；接管控制期间始终屏蔽震动。本开关不影响原车HUD左右压线提示（需要车辆支持此功能）",
       "../assets/offroad/icon_warning.png",
     },
   };
