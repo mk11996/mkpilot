@@ -233,6 +233,18 @@ class TestStartupAndLdw(unittest.TestCase):
     self.assertFalse(any(m[0] == 0x440 for m in self.sends(4)))
     self.assertTrue(any(m[0] == 0x440 for m in self.sends(50)))
 
+  def test_hud_preserves_all_stock_warning_bits_without_interpreting_sides(self):
+    for warning in range(8):
+      for hands in (False, True):
+        with self.subTest(warning=warning, hands=hands):
+          original = {'HANDS_ON_STEER_WARN': warning & 1, 'LDW_WARN_LL': (warning >> 1) & 1,
+                      'LDW_WARN_RL': (warning >> 2) & 1}
+          output = can.create_alert_command(self.controller.packer, original, hands, True)[2]
+          actual = int(output['HANDS_ON_STEER_WARN']) | (output['LDW_WARN_LL'] << 1) | (output['LDW_WARN_RL'] << 2)
+          self.assertEqual(actual, warning)
+          cleared = can.create_alert_command(self.controller.packer, original, hands, False)[2]
+          self.assertEqual((cleared['HANDS_ON_STEER_WARN'], cleared['LDW_WARN_LL'], cleared['LDW_WARN_RL']), (0, 0, 0))
+
   def test_istop_starts_after_continuous_readiness_and_is_bounded(self):
     self.controller.istop_enabled = True
     self.clock.now = 20

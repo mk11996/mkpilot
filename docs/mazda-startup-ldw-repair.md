@@ -55,7 +55,7 @@ This table reflects the user's corrected requirement on 2026-10-28. The previous
 
 ### Independent stock HUD side warnings
 
-At the user's request, the OEM HUD left/right warnings are independent of both engagement and the vibration setting. `CAM_LANEINFO.LDW_WARN_LL` is bit 57, `LDW_WARN_RL` is bit 58, and `HANDS_ON_STEER_WARN` is bit 56, matching the supplied DBC. The old `LDW_WARN` three-bit field incorrectly mixed all three and is removed. The camera parser now declares all the known HUD message fields so lane/TJA/error context is retained during packing.
+At the user's request, OEM HUD warnings are independent of both engagement and the vibration setting. The supplied DBC labels bits 57/58 as `LDW_WARN_LL`/`LDW_WARN_RL` and bit 56 as `HANDS_ON_STEER_WARN`. These names are parser aliases, not proof of physical HUD semantics on this vehicle. After the user reported both departures showing the left side, an additional overwrite was found: bit 56 still came from the host's `steer_required` flag. This merges distinct original warning values, for example 4 and 5. The helper now preserves all three stock bits 56..58 together while camera data is fresh and clears the whole group when stale. It does not guess or swap side codes. Other existing hands-on overlays outside this three-bit group remain unchanged.
 
 Each newly received stock HUD message is forwarded through the host-generated `0x440`. Camera parser invalidity or more than one second without this 2 Hz message clears the side warnings; there is no synthetic warning hold. Missing-message fallback retains the existing 2 Hz cadence. HUD display is not a request to steer and does not enable vibration.
 

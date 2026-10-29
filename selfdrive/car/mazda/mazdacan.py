@@ -90,12 +90,13 @@ def create_ti_steering_control(packer, car_fingerprint, frame, apply_steer):
 
 def create_alert_command(packer, cam_msg: dict, steer_required: bool, camera_fresh: bool):
   values = copy.copy(cam_msg)
-  # HUD left/right flags are independent of engagement and the vibration switch.
-  # These are two separate bits, not a side enumeration including the hands bit.
+  # Preserve all three stock warning bits (56..58) together. The parser's bit-56
+  # name does not prove its meaning on this vehicle: forcing it from steer_required
+  # merges distinct raw warning values such as 0b100 and 0b101.
   values.update({
     # TODO: what's the difference between all these? do we need to send all?
     "HANDS_WARN_3_BITS": 0b111 if steer_required else 0,
-    "HANDS_ON_STEER_WARN": steer_required,
+    "HANDS_ON_STEER_WARN": int(bool(cam_msg.get("HANDS_ON_STEER_WARN", 0))) if camera_fresh else 0,
     "HANDS_ON_STEER_WARN_2": steer_required,
 
     "LDW_WARN_LL": int(bool(cam_msg.get("LDW_WARN_LL", 0))) if camera_fresh else 0,

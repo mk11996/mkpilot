@@ -13,28 +13,36 @@ class TestHudNative(unittest.TestCase):
     self.cam = {'LDW_WARN_LL': 0, 'LDW_WARN_RL': 0, 'TJA': 5, 'TJA_TRANSITION': 2,
                 'LANE_LINES': 3, 'LINE_VISIBLE': 1, 'NO_ERR_BIT': 1, 'BIT1': 1, 'BIT3': 1}
 
-  def packet(self, left, right, hands=False, fresh=True):
-    cam = dict(self.cam, LDW_WARN_LL=left, LDW_WARN_RL=right)
+  def packet(self, left, right, hands=False, fresh=True, stock_bit56=0):
+    cam = dict(self.cam, LDW_WARN_LL=left, LDW_WARN_RL=right, HANDS_ON_STEER_WARN=stock_bit56)
     return mazdacan.create_alert_command(self.packer, cam, hands, fresh)
 
-  def test_side_bits_and_hands_are_disjoint(self):
+  def test_stock_warning_group_is_preserved_despite_hands_override(self):
     for left in (0, 1):
       for right in (0, 1):
-        for hands in (False, True):
-          with self.subTest(left=left, right=right, hands=hands):
-            msg = self.packet(left, right, hands)
-            self.assertEqual((msg[0], msg[3], len(msg[2])), (0x440, 0, 8))
-            self.assertEqual(msg[2][7] & 0x06, (left << 1) | (right << 2))
-            self.assertEqual(msg[2][7] & 0x01, int(hands))
-            self.assertEqual(msg[2][7] & 0x08, int(hands) << 3)
-            self.assertEqual(msg[2][6] & 0x0e, 0x0e if hands else 0)
+        for bit56 in (0, 1):
+          for hands in (False, True):
+            with self.subTest(left=left, right=right, bit56=bit56, hands=hands):
+              msg = self.packet(left, right, hands, stock_bit56=bit56)
+              self.assertEqual((msg[0], msg[3], len(msg[2])), (0x440, 0, 8))
+              self.assertEqual(msg[2][7] & 0x07, (left << 1) | (right << 2) | bit56)
+              self.assertEqual(msg[2][7] & 0x08, int(hands) << 3)
+              self.assertEqual(msg[2][6] & 0x0e, 0x0e if hands else 0)
+
+  def test_distinct_original_four_and_five_are_not_merged(self):
+    for hands in (False, True):
+      a = self.packet(0, 1, hands, stock_bit56=0)[2]
+      b = self.packet(0, 1, hands, stock_bit56=1)[2]
+      self.assertEqual((a[7] & 7, b[7] & 7), (4, 5))
+      self.assertEqual(a[:7], b[:7])
+      self.assertEqual(a[7] ^ b[7], 1)
 
   def test_stale_side_warning_clears_without_erasing_lane_context(self):
-    fresh = self.packet(1, 1)[2]
-    stale = self.packet(1, 1, fresh=False)[2]
+    fresh = self.packet(1, 1, stock_bit56=1)[2]
+    stale = self.packet(1, 1, fresh=False, stock_bit56=1)[2]
     self.assertEqual(fresh[:7], stale[:7])
-    self.assertEqual(fresh[7] ^ stale[7], 0x06)
-    self.assertEqual(stale[7] & 0x06, 0)
+    self.assertEqual(fresh[7] ^ stale[7], 0x07)
+    self.assertEqual(stale[7] & 0x07, 0)
     self.assertEqual(stale[4] & 0x70, 5 << 4)  # TJA
     self.assertEqual(stale[3] & 0x0c, 2 << 2)  # TJA_TRANSITION
     self.assertEqual(stale[1] & 0x40, 0x40)   # NO_ERR_BIT
