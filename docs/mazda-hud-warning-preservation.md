@@ -31,3 +31,13 @@ PYTHONPATH=/data/openpilot:/data/openpilot/pyextra python3 -B selfdrive/car/mazd
 ```
 
 Actual incoming camera `0x440` and outgoing host `0x440` should be compared for the user's left/right test before claiming a vehicle-level resolution.
+
+## Uploaded rlog confirms the overwrite
+
+The user subsequently provided a roughly 60.27-second rlog segment. Its initData identifies deployed commit `3644559`. File SHA-256: `e0e47fed556d9daf5e781e0b76ca4bcca3f92f9a5b5f2a258719785d97cbe82b`.
+
+All 126 camera-bus `0x440` frames were paired with the corresponding host output. There were 119 unchanged zero-warning frames, four camera warning-group values of 3 rewritten to 2, and three warning-group values of 4 retained as 4. Panda's bus-128 TX echoes show the same output groups. For example, camera `4102000000001043` became transmitted `4102000000001042`; only bit 56 changed, about 6 ms after receipt. The actual recording contains codes 3/4, not the illustrative 4/5 pair used in the earlier offline reproduction. No physical left/right assignment is inferred without a user annotation.
+
+Replaying the unaltered old production helper with an independent codec derived from the checked-in DBC reproduces all 126 recorded host packets. Replaying the repaired helper preserves all 126 original camera packets byte-for-byte; four output frames change, exclusively in bit 56. This is offline log replay, not new hardware execution. Native test fixtures now include the exact recorded camera frames so the previous overwrite cannot pass as expected behavior.
+
+The log demonstrates the bit loss on this vehicle. Post-deployment physical HUD validation is still required.

@@ -1,10 +1,13 @@
 """Pure-memory checks using rebuilt native CAN libraries; no CAN/USB access."""
 import unittest
+from types import SimpleNamespace
 
 from opendbc.can.packer import CANPacker
 from opendbc.can.parser import CANParser
 from selfdrive.boardd.boardd import can_list_to_can_capnp
 from selfdrive.car.mazda import mazdacan
+from selfdrive.car.mazda.carstate import CarState
+from selfdrive.car.mazda.values import CAR
 
 
 class TestHudNative(unittest.TestCase):
@@ -58,6 +61,15 @@ class TestHudNative(unittest.TestCase):
       self.assertEqual(values['LDW_WARN_LL'], (last_byte >> 1) & 1)
       self.assertEqual(values['LDW_WARN_RL'], (last_byte >> 2) & 1)
       self.assertEqual(values['HANDS_ON_STEER_WARN'], last_byte & 1)
+
+  def test_uploaded_rlog_camera_frames_are_preserved_exactly(self):
+    parser = CarState.get_cam_can_parser(SimpleNamespace(carFingerprint=CAR.MAZDA3))
+    for raw_hex in ('4102000000001043', '4201000000001043', '4103000000001044'):
+      with self.subTest(camera_frame=raw_hex):
+        payload = bytes.fromhex(raw_hex)
+        parser.update_strings([can_list_to_can_capnp([[0x440, 0, payload, 2]])])
+        output = mazdacan.create_alert_command(self.packer, parser.vl['CAM_LANEINFO'], False, True)
+        self.assertEqual(bytes(output[2]), payload)
 
 
 if __name__ == '__main__':
